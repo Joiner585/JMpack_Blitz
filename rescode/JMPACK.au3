@@ -1,4 +1,4 @@
-#pragma compile(Out, JMPACK 3.7.exe)
+﻿#pragma compile(Out, JMPACK 3.7.exe)
 #pragma compile(icon,JMPack.ico)
 #pragma compile(comments,JMPACK 3.7)
 #pragma compile(legalcopyright,Joiner(Терещенко Александр))

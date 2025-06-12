@@ -2822,7 +2822,7 @@ Global $backlightcolor, $flpgtv, $flpg
 Global $iPercData, $iPercId, $hHBmp_BG, $WPerc, $HPerc, $BgColorGui, $FgBGColor, $BGColor, $TextBGColor, $sFontProgress, $iVisPerc
 Global $PathSFX = @ScriptFullPath
 Global $Blitz_Packs = '', $GetPathExe = '', $sListModsF = '', $iCHLangPJ = 1
-Global $aFontInstRes, $FONT_PRIVATE = 0x10, $SelectProgressbar = 0
+Global $aFontInstRes, $FONT_PRIVATE = 0x10, $SelectProgressbar = 0, $nDiffplayCtrl = 0, $PlayCheck = 0, $PlayPic = 0
 Global $picauback = $wkdir & '\picauback.png', $picaubackST = $wkdir & '\picaubackST.png', $picaumod = $wkdir & '\picaumod.png', $picaumodST = $wkdir & '\picaumodST.png'
 $aFontInstRes = _FileListToArray($wkdir, '*.jmpf', 1, 1)
 If Not @error Then
@@ -3060,6 +3060,13 @@ Func _EXF()
 	If FileExists($wkdir & '\flash.png') Then _WinExFF()
 	$iCHLangPJ = _ChooseLang()
 	_LOADPJT()
+	If $PlayCheck = 1 And $PlayPic = 1 Then
+		$nDiffplayCtrl = 0
+	ElseIf $PlayCheck = 1 And $PlayPic = 0 Then
+		$nDiffplayCtrl = 1
+	Else
+		$nDiffplayCtrl = 0
+	EndIf
 EndFunc   ;==>_EXF
 Func _CurGui()
 	Local $getg = _mGetValueKey($objw, 0)
@@ -3870,6 +3877,10 @@ Func _LOADPJT()
 						If $gf[0] > 1 Then GUICtrlSetFont($funcid, $gf[1], $gf[2], $gf[3], $gf[4])
 						GUICtrlSetColor($funcid, $agta[10])
 						GUICtrlSetBkColor($funcid, $agta[11])
+						Switch $agta[14]
+							Case 'backauset', 'ausetmod'
+								$PlayCheck = 1
+						EndSwitch
 					Case 'progress'
 						Switch $agta[24]
 							Case 'barA'
@@ -3908,6 +3919,10 @@ Func _LOADPJT()
 								GUICtrlSetPos($funcid, $agta[2], $agta[3], $agta[4], $agta[5])
 							EndIf
 						EndIf
+						Switch $agta[14]
+							Case 'backauset', 'ausetmod'
+								$PlayPic = 1
+						EndSwitch
 				EndSwitch
 				If Not $funcid Then ContinueLoop
 				GUICtrlSetResizing($funcid, $agta[13])
@@ -4287,7 +4302,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 EndFunc   ;==>WM_SETCURSOR
 Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 	#forceref $hWnd, $iMsg, $ilParam
-	Local $FSID, $gtprc, $RFsid, $getparam
+	Local $FSID, $gtprc, $RFsid, $getparam, $getposauctrl
 	$FSID = _WinAPI_LoWord($iwParam)
 	Switch $FSID
 		Case $FSID > 0
@@ -4334,79 +4349,85 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 									$flbackup = 0
 								EndIf
 							Case 'backauset'
-								Switch $RFsid
-									Case 1
-										_BASS_ChannelPause($MusicHandleBck)
-									Case 4
-										_BASS_ChannelPlay($MusicHandleBck, 0)
-								EndSwitch
-								$nbackauset = $RFsid
-								If _mExistsKey($oMod, 'backauset') Then
-									$gtprc = _mGetValueKey($oMod, 'backauset')
-									For $i = 0 To UBound($gtprc) - 1
-										GUICtrlSetState($gtprc[$i], $nbackauset)
-									Next
+								If $nDiffplayCtrl = 1 Then
+									Switch $RFsid
+										Case 1
+											_BASS_ChannelPause($MusicHandleBck)
+										Case 4
+											_BASS_ChannelPlay($MusicHandleBck, 0)
+									EndSwitch
+									$nbackauset = $RFsid
+									If _mExistsKey($oMod, 'backauset') Then
+										$gtprc = _mGetValueKey($oMod, 'backauset')
+										For $i = 0 To UBound($gtprc) - 1
+											GUICtrlSetState($gtprc[$i], $nbackauset)
+										Next
+									EndIf
 								EndIf
 							Case 'ausetmod'
-								$nausetmod = $RFsid
-								If _mExistsKey($oMod, 'ausetmod') Then
-									$gtprc = _mGetValueKey($oMod, 'ausetmod')
-									For $i = 0 To UBound($gtprc) - 1
-										GUICtrlSetState($gtprc[$i], $nausetmod)
-									Next
+								If $nDiffplayCtrl = 1 Then
+									$nausetmod = $RFsid
+									If _mExistsKey($oMod, 'ausetmod') Then
+										$gtprc = _mGetValueKey($oMod, 'ausetmod')
+										For $i = 0 To UBound($gtprc) - 1
+											GUICtrlSetState($gtprc[$i], $nausetmod)
+										Next
+									EndIf
 								EndIf
 						EndSwitch
 						$getparam[15] = $RFsid
 						_mSetValueKey($objc, $FSID, $getparam)
 					Case 'pic'
-						Switch String($getparam[14])
-							Case 'backauset'
-								If $nbackauset = 1 Then
-									$nbackauset = 4
-									_BASS_ChannelPlay($MusicHandleBck, 0)
-									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
-									If _mExistsKey($oMod, 'backauset') Then
-										$gtprc = _mGetValueKey($oMod, 'backauset')
-										For $i = 0 To UBound($gtprc) - 1
-											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
-											_SetImage($gtprc[$i], $picauback, $getparam[2], $getparam[3], -1)
-										Next
+						If $nDiffplayCtrl = 0 Then
+							Switch String($getparam[14])
+								Case 'backauset'
+									If $nbackauset = 1 Then
+										$nbackauset = 4
+										_BASS_ChannelPlay($MusicHandleBck, 0)
+;~ 									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
+										If _mExistsKey($oMod, 'backauset') Then
+											$gtprc = _mGetValueKey($oMod, 'backauset')
+											For $i = 0 To UBound($gtprc) - 1
+												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
+												_SetImage($gtprc[$i], $picauback, $getposauctrl[2], $getposauctrl[3], -1)
+											Next
+										EndIf
+									Else
+										$nbackauset = 1
+										_BASS_ChannelPause($MusicHandleBck)
+;~ 									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
+										If _mExistsKey($oMod, 'backauset') Then
+											$gtprc = _mGetValueKey($oMod, 'backauset')
+											For $i = 0 To UBound($gtprc) - 1
+												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
+												_SetImage($gtprc[$i], $picaubackST, $getposauctrl[2], $getposauctrl[3], -1)
+											Next
+										EndIf
 									EndIf
-								Else
-									$nbackauset = 1
-									_BASS_ChannelPause($MusicHandleBck)
-									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
-									If _mExistsKey($oMod, 'backauset') Then
-										$gtprc = _mGetValueKey($oMod, 'backauset')
-										For $i = 0 To UBound($gtprc) - 1
-											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
-											_SetImage($gtprc[$i], $picaubackST, $getparam[2], $getparam[3], -1)
-										Next
+								Case 'ausetmod'
+									If $nausetmod = 1 Then
+										$nausetmod = 4
+;~ 									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
+										If _mExistsKey($oMod, 'ausetmod') Then
+											$gtprc = _mGetValueKey($oMod, 'ausetmod')
+											For $i = 0 To UBound($gtprc) - 1
+												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
+												_SetImage($gtprc[$i], $picaumod, $getposauctrl[2], $getposauctrl[3], -1)
+											Next
+										EndIf
+									Else
+										$nausetmod = 1
+;~ 									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
+										If _mExistsKey($oMod, 'ausetmod') Then
+											$gtprc = _mGetValueKey($oMod, 'ausetmod')
+											For $i = 0 To UBound($gtprc) - 1
+												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
+												_SetImage($gtprc[$i], $picaumodST, $getposauctrl[2], $getposauctrl[3], -1)
+											Next
+										EndIf
 									EndIf
-								EndIf
-							Case 'ausetmod'
-								If $nausetmod = 1 Then
-									$nausetmod = 4
-									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
-									If _mExistsKey($oMod, 'ausetmod') Then
-										$gtprc = _mGetValueKey($oMod, 'ausetmod')
-										For $i = 0 To UBound($gtprc) - 1
-											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
-											_SetImage($gtprc[$i], $picaumod, $getparam[2], $getparam[3], -1)
-										Next
-									EndIf
-								Else
-									$nausetmod = 1
-									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
-									If _mExistsKey($oMod, 'ausetmod') Then
-										$gtprc = _mGetValueKey($oMod, 'ausetmod')
-										For $i = 0 To UBound($gtprc) - 1
-											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
-											_SetImage($gtprc[$i], $picaumodST, $getparam[2], $getparam[3], -1)
-										Next
-									EndIf
-								EndIf
-						EndSwitch
+							EndSwitch
+						EndIf
 				EndSwitch
 			EndIf
 	EndSwitch
