@@ -119,6 +119,7 @@ Global $startcrlb, $aModMove[0]
 Global $AccelKeys[12][2] = [['{F1}', $svpt], ['{F2}', $ldpt], ['{F3}', $reload], ['^z', $ntp], ['^x', $bckp], ['!{F4}', ''], ['{F5}', $coordset], ['{F6}', $notcoord], ['+1', $31], ['^+', $iDummyS], ['!q', $iDummyE], ['{DEL}', $iDummyD]]
 Global $iPercData, $iPercId, $hHBmp_BG, $WPerc, $HPerc, $BgColorGui = 0x000000, $FgBGColor = 0x808080, $BGColor = 0x0000FF, $TextBGColor = 0xFFFFFF, $sFontProgress = 'Arial', $iVisPerc = 1
 Global $fldesgproc, $GuiPercD, $SelectProgressbar = 'barS', $TpBar = 0
+Global $picauback = 'picauback.png', $picaubackST = 'picaubackST.png', $picaumod = 'picaumod.png', $picaumodST = 'picaumodST.png'
 $UnchkUp = 1
 _SetLangFF()
 _FixAccelHotKeyLayout()
@@ -262,7 +263,7 @@ Func _MenuCTRL($HW, $Crid = 0)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 13, $JMPlangset[196], $backup)
 			_GUICtrlMenu_SetItemDisabled($hMenu, 13)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 14, $JMPlangset[148], $cash)
-			_GUICtrlMenu_SetItemDisabled($hMenu, 15)
+			_GUICtrlMenu_SetItemDisabled($hMenu, 14)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 15, $JMPlangset[151], $nbackauset)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 16, $JMPlangset[152], $nausetmod)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 17, $JMPlangset[197], $nofunc)
@@ -339,23 +340,27 @@ Func _MenuCTRL($HW, $Crid = 0)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 12, $JMPlangset[210], $setinst)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 13, $JMPlangset[149], $ctrlprnt)
 			_GUICtrlMenu_InsertMenuItem($hMenu, 14, $JMPlangset[150], $ctrlmw)
-			_GUICtrlMenu_InsertMenuItem($hMenu, 15, $JMPlangset[197], $nofunc)
-			_GUICtrlMenu_InsertMenuItem($hMenu, 16, '', 0)
+			_GUICtrlMenu_InsertMenuItem($hMenu, 15, $JMPlangset[151], $nbackauset)
+			_GUICtrlMenu_InsertMenuItem($hMenu, 16, $JMPlangset[152], $nausetmod)
+			_GUICtrlMenu_InsertMenuItem($hMenu, 17, $JMPlangset[197], $nofunc)
+			_GUICtrlMenu_InsertMenuItem($hMenu, 18, '', 0)
 			Switch Number($getinfclass[9])
 				Case 128
-					_GUICtrlMenu_InsertMenuItem($hMenu, 17, $JMPlangset[213], $dsl)
-					_GUICtrlMenu_SetItemDisabled($hMenu, 13)
+					_GUICtrlMenu_InsertMenuItem($hMenu, 19, $JMPlangset[213], $dsl)
+					For $i = 3 To 17
+						_GUICtrlMenu_SetItemDisabled($hMenu, $i)
+					Next
 				Case 64
-					_GUICtrlMenu_InsertMenuItem($hMenu, 17, $JMPlangset[214], $dsl)
-					_GUICtrlMenu_SetItemEnabled($hMenu, 13)
+					_GUICtrlMenu_InsertMenuItem($hMenu, 19, $JMPlangset[214], $dsl)
+;~ 					_GUICtrlMenu_SetItemEnabled($hMenu, 13)
 			EndSwitch
-			_GUICtrlMenu_InsertMenuItem($hMenu, 18, $JMPlangset[192], $callp)
+			_GUICtrlMenu_InsertMenuItem($hMenu, 20, $JMPlangset[192], $callp)
 			If $oSNW.Exists('page' & $CurGui + 1) Then
-				_GUICtrlMenu_SetItemEnabled($hMenu, 18)
+				_GUICtrlMenu_SetItemEnabled($hMenu, 20)
 			Else
-				_GUICtrlMenu_SetItemDisabled($hMenu, 18)
+				_GUICtrlMenu_SetItemDisabled($hMenu, 20)
 			EndIf
-			_GUICtrlMenu_InsertMenuItem($hMenu, 19, $JMPlangset[8], $delc)
+			_GUICtrlMenu_InsertMenuItem($hMenu, 21, $JMPlangset[8], $delc)
 		Case 'progress'
 			_GUICtrlMenu_InsertMenuItem($hMenu, 0, $JMPlangset[215], $desgproc)
 			Switch $getinfclass[24]

@@ -2950,6 +2950,7 @@ Func _ChooseLang()
 	GUICtrlSetBkColor(-1, 0x808080)
 	GUICtrlSetColor(-1, 0xFFFFFF)
 	GUISetState(@SW_SHOW, $hSelInstLang)
+	WinActivate($hSelInstLang)
 	While 1
 		$NMSG = GUIGetMsg()
 		Switch $NMSG
@@ -4286,17 +4287,17 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 EndFunc   ;==>WM_SETCURSOR
 Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 	#forceref $hWnd, $iMsg, $ilParam
-	Local $FSID
+	Local $FSID, $gtprc, $RFsid, $getparam
 	$FSID = _WinAPI_LoWord($iwParam)
 	Switch $FSID
 		Case $FSID > 0
-			Local $getparam = _mGetValueKey($objc, $FSID)
+			$getparam = _mGetValueKey($objc, $FSID)
 			If IsArray($getparam) Then
 				Switch String($getparam[0])
 					Case 'mod'
 						_CHKPARENT($FSID)
 					Case 'checkbox'
-						Local $RFsid = GUICtrlRead($FSID)
+						$RFsid = GUICtrlRead($FSID)
 						Switch String($getparam[14])
 							Case 'cash'
 								If $RFsid = 1 Then
@@ -4341,7 +4342,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 								EndSwitch
 								$nbackauset = $RFsid
 								If _mExistsKey($oMod, 'backauset') Then
-									Local $gtprc = _mGetValueKey($oMod, 'backauset')
+									$gtprc = _mGetValueKey($oMod, 'backauset')
 									For $i = 0 To UBound($gtprc) - 1
 										GUICtrlSetState($gtprc[$i], $nbackauset)
 									Next
@@ -4349,7 +4350,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 							Case 'ausetmod'
 								$nausetmod = $RFsid
 								If _mExistsKey($oMod, 'ausetmod') Then
-									Local $gtprc = _mGetValueKey($oMod, 'ausetmod')
+									$gtprc = _mGetValueKey($oMod, 'ausetmod')
 									For $i = 0 To UBound($gtprc) - 1
 										GUICtrlSetState($gtprc[$i], $nausetmod)
 									Next
@@ -4360,13 +4361,58 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 					Case 'pic'
 						Switch String($getparam[14])
 							Case 'backauset'
+								If $nbackauset = 1 Then
+									$nbackauset = 4
+									_BASS_ChannelPlay($MusicHandleBck, 0)
+									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
+									If _mExistsKey($oMod, 'backauset') Then
+										$gtprc = _mGetValueKey($oMod, 'backauset')
+										For $i = 0 To UBound($gtprc) - 1
+											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
+											_SetImage($gtprc[$i], $picauback, $getparam[2], $getparam[3], -1)
+										Next
+									EndIf
+								Else
+									$nbackauset = 1
+									_BASS_ChannelPause($MusicHandleBck)
+									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
+									If _mExistsKey($oMod, 'backauset') Then
+										$gtprc = _mGetValueKey($oMod, 'backauset')
+										For $i = 0 To UBound($gtprc) - 1
+											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
+											_SetImage($gtprc[$i], $picaubackST, $getparam[2], $getparam[3], -1)
+										Next
+									EndIf
+								EndIf
 							Case 'ausetmod'
+								If $nausetmod = 1 Then
+									$nausetmod = 4
+									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
+									If _mExistsKey($oMod, 'ausetmod') Then
+										$gtprc = _mGetValueKey($oMod, 'ausetmod')
+										For $i = 0 To UBound($gtprc) - 1
+											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
+											_SetImage($gtprc[$i], $picaumod, $getparam[2], $getparam[3], -1)
+										Next
+									EndIf
+								Else
+									$nausetmod = 1
+									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
+									If _mExistsKey($oMod, 'ausetmod') Then
+										$gtprc = _mGetValueKey($oMod, 'ausetmod')
+										For $i = 0 To UBound($gtprc) - 1
+											$getparam = ControlGetPos($WOTP, '', $gtprc[$i])
+											_SetImage($gtprc[$i], $picaumodST, $getparam[2], $getparam[3], -1)
+										Next
+									EndIf
+								EndIf
 						EndSwitch
 				EndSwitch
 			EndIf
 	EndSwitch
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>WM_COMMAND
+;~ $picauback = $wkdir & '\picauback.png', $picaubackST = $wkdir & '\picaubackST.png', $picaumod = $wkdir & '\picaumod.png', $picaumodST = $wkdir & '\picaumodST.png'
 Func _CHKPARENT($idchk)
 	Local $ainfid = _mGetValueKey($objc, $idchk)
 	If GUICtrlRead($idchk) = 4 Then

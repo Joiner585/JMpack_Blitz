@@ -1243,6 +1243,10 @@ Func _COPYRES()
 	FileCopy($prjpath & '\IniLangInst.txt', $wkdir & '\IniLangInst.txt', 1)
 	FileCopy($prjpath & '\backimginst.jpg', $wkdir & '\backimginst.jpg', 1)
 	FileCopy(@ScriptDir & '\jmpack.ico', $wkdir & '\jmpack.ico', 1)
+	FileCopy(@ScriptDir & '\picauback.png', $wkdir & '\picauback.png', 1)
+	FileCopy(@ScriptDir & '\picaubackST.png', $wkdir & '\picaubackST.png', 1)
+	FileCopy(@ScriptDir & '\picaumod.png', $wkdir & '\picaumod.png', 1)
+	FileCopy(@ScriptDir & '\picaumodST.png', $wkdir & '\picaumodST.png', 1)
 	Local $nAllsizeMod
 	For $i = 1 To UBound($aAllmod) - 1
 		If FileExists($aAllmod[$i][1]) Then
