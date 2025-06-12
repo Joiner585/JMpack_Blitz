@@ -239,6 +239,11 @@
 237=Delete
 238=Select font folder
 239=Fonts
+240=Standard
+241=Standard color
+242=Animated
+243=Progressbar
+244=Select progressbar type
 [INSTALL]
 0=Game not found. Take advantage of the choice
 1=Clear game cache
