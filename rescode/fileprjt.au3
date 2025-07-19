@@ -1,3 +1,5 @@
+#RequireAdmin
+Opt('MustDeclareVars', 1)
 Global Const $GDIP_PXF32ARGB = 0x0026200A
 Global Const $GDIP_INTERPOLATIONMODE_HIGHQUALITYBICUBIC = 7
 Global Const $GDIP_PIXELOFFSETMODE_HIGHQUALITY = 2
@@ -521,6 +523,38 @@ Func _ArrayAdd(ByRef $aArray, $vValue, $iStart = 0, $sDelim_Item = "|", $sDelim_
 	EndSwitch
 	Return UBound($aArray, $UBOUND_ROWS) - 1
 EndFunc   ;==>_ArrayAdd
+Func _ArrayConcatenate(ByRef $aArrayTarget, Const ByRef $aArraySource, $iStart = 0)
+
+	If $iStart = Default Then $iStart = 0
+	If Not IsArray($aArrayTarget) Then Return SetError(1, 0, -1)
+	If Not IsArray($aArraySource) Then Return SetError(2, 0, -1)
+	Local $iDim_Total_Tgt = UBound($aArrayTarget, $UBOUND_DIMENSIONS)
+	Local $iDim_Total_Src = UBound($aArraySource, $UBOUND_DIMENSIONS)
+	Local $iDim_1_Tgt = UBound($aArrayTarget, $UBOUND_ROWS)
+	Local $iDim_1_Src = UBound($aArraySource, $UBOUND_ROWS)
+	If $iStart < 0 Or $iStart > $iDim_1_Src - 1 Then Return SetError(6, 0, -1)
+	Switch $iDim_Total_Tgt
+		Case 1
+			If $iDim_Total_Src <> 1 Then Return SetError(4, 0, -1)
+			ReDim $aArrayTarget[$iDim_1_Tgt + $iDim_1_Src - $iStart]
+			For $i = $iStart To $iDim_1_Src - 1
+				$aArrayTarget[$iDim_1_Tgt + $i - $iStart] = $aArraySource[$i]
+			Next
+		Case 2
+			If $iDim_Total_Src <> 2 Then Return SetError(4, 0, -1)
+			Local $iDim_2_Tgt = UBound($aArrayTarget, $UBOUND_COLUMNS)
+			If UBound($aArraySource, $UBOUND_COLUMNS) <> $iDim_2_Tgt Then Return SetError(5, 0, -1)
+			ReDim $aArrayTarget[$iDim_1_Tgt + $iDim_1_Src - $iStart][$iDim_2_Tgt]
+			For $i = $iStart To $iDim_1_Src - 1
+				For $j = 0 To $iDim_2_Tgt - 1
+					$aArrayTarget[$iDim_1_Tgt + $i - $iStart][$j] = $aArraySource[$i][$j]
+				Next
+			Next
+		Case Else
+			Return SetError(3, 0, -1)
+	EndSwitch
+	Return UBound($aArrayTarget, $UBOUND_ROWS)
+EndFunc   ;==>_ArrayConcatenate
 Func _ArrayDelete(ByRef $aArray, $vRange)
 	If Not IsArray($aArray) Then Return SetError(1, 0, -1)
 	Local $iDim_1 = UBound($aArray, $UBOUND_ROWS) - 1
@@ -1791,52 +1825,32 @@ EndFunc   ;==>_GUICtrlTreeView_SetText
 Global Const $GUI_RUNDEFMSG = 'GUI_RUNDEFMSG'
 Global Const $GUI_HIDE = 32
 
-Func _mSetValueKey(ByRef $mMap, $vKey, $vValue)
-	If Not ((VarGetType($mMap) = 'Map')) Then Return 0
-	If MapExists($mMap, $vKey) Then
-		$mMap[$vKey] = $vValue
-		Return 1
-	Else
-		Return 0
-	EndIf
-EndFunc   ;==>_mSetValueKey
-Func _mGetValueKey($mMap, $vKey)
-	If Not (VarGetType($mMap) = 'Map') Then Return 0
-	If MapExists($mMap, $vKey) Then Return $mMap[$vKey]
-	Return 0
-EndFunc   ;==>_mGetValueKey
-Func _mExistsKey($mMap, $vKey)
-	If Not (VarGetType($mMap) = 'Map') Then Return 0
-	If MapExists($mMap, $vKey) Then Return 1
-	Return 0
-EndFunc   ;==>_mExistsKey
-Func _mCreateKey(ByRef $mMap, $vKey, $vValue = '')
-	If Not (VarGetType($mMap) = 'Map') Then Return 0
-	If Not MapExists($mMap, $vKey) Then
-		$mMap[$vKey] = $vValue
-		Return 1
-	Else
-		Return 0
-	EndIf
-EndFunc   ;==>_mCreateKey
-Func _mGetKeys($mMap, $iCount = 0)
-	If Not (VarGetType($mMap) = 'Map') Then Return 0
-	If $iCount Then
-		Return UBound(MapKeys($mMap))
-	Else
-		Return MapKeys($mMap)
-	EndIf
-EndFunc   ;==>_mGetKeys
-Func _mRemoveKey(ByRef $mMap, $vKey)
-	If Not (VarGetType($mMap) = 'Map') Then Return 0
-	If MapExists($mMap, $vKey) Then Return MapRemove($mMap, $vKey)
-	Return 0
-EndFunc   ;==>_mRemoveKey
-Global $g_GTVEx_aTVData = 0
-Global $hModificationItemTV = 0
+;~ ----------------------_GUITreeViewEx----------
+Global $g_GTVEx_aTVData = 0 ; Дескриптор TreeView
+Global $hModificationItemTV = 0 ; Дескриптор текущего выбранного пункта
 Global $UnchkUp = 0, $fItemDelTV = 0
 Global $MnTVs = 0, $sNewTxtItemTV = 0, $nNewTxtItemTV = 0, $nFlagKeyDn = 0, $nFlagSelect = 0
-Global $oSNTV[], $oSNTVEX[]
+Global $oSNTV, $oSNTVEX
+$oSNTV = ObjCreate('Scripting.Dictionary')
+If @error Then
+	MsgBox(16, '1', 'Сreation error Scripting.Dictionary')
+Else
+	$oSNTV.CompareMode = 1
+EndIf
+
+$oSNTVEX = ObjCreate('Scripting.Dictionary')
+If @error Then
+	MsgBox(16, '2', 'Creation error Scripting.Dictionary')
+Else
+	$oSNTVEX.CompareMode = 1
+EndIf
+;~ $sTvIniData - Путь к файлу сохранения
+;~ $sSection - Имя секции
+;~ $sKey - Имя параметра
+;~ По умолчанию функция выводит в массив все пункты. Первая колонка - имя пункта, вторая - параметр пункта, третья - состояние пункта: 1 - пункт отмечен
+;~ Если все параметры заполнены, то данные будут записаны в файл
+;~ Параметр пункта может быть использован в функции _GUITreeViewEx_GetItemData
+
 Func _GUITreeViewEx_SaveTV($hTVX, $sTvIniData = '', $sSection = '', $sKey = '')
 	Local $hTV
 	If IsHWnd($hTVX) Then
@@ -1863,7 +1877,7 @@ Func _GUITreeViewEx_SaveTV($hTVX, $sTvIniData = '', $sSection = '', $sKey = '')
 		Next
 		$sText = _GUICtrlTreeView_GetText($hTV, $hHandle)
 		$ParamItem = _GUICtrlTreeView_GetItemParam($hTV, $hHandle)
-		$valparam = _mGetValueKey($oSNTV, $ParamItem)
+		$valparam = $oSNTV.Item($ParamItem)
 		If Not $GetRes Then
 			$ChkType = Number($valparam[1])
 			ReDim $aCheckedTV[$z + 1][3]
@@ -1887,9 +1901,14 @@ Func _GUITreeViewEx_SaveTV($hTVX, $sTvIniData = '', $sSection = '', $sKey = '')
 		Return $aCheckedTV
 	EndIf
 EndFunc   ;==>_GUITreeViewEx_SaveTV
-Func _GUITreeViewEx_LoadTV($hTVX, $sTvIniData, $sSection, $sKey, $iCountLang = 1, $sSeparator = '{}')
+
+
+;~ $sTvIniData - Путь к файлу сохранения
+;~ $sSection - Имя секции
+;~ $sKey - Имя параметра
+
+Func _GUITreeViewEx_LoadTV($hTVX, $sTvIniData, $sSection, $sKey)
 	Local $hTV
-	Local $setmedit
 	If IsHWnd($hTVX) Then
 		$hTV = $hTVX
 	Else
@@ -1910,27 +1929,22 @@ Func _GUITreeViewEx_LoadTV($hTVX, $sTvIniData, $sSection, $sKey, $iCountLang = 1
 		$infoparam = StringSplit($sTVItem, '*', 2)
 		If UBound($infoparam) < 4 Then
 			_GUITreeViewEx_Delete($hTV)
-			Return SetError(2)
+			Return SetError(2) ; данные в файле повреждены
 		EndIf
-		$sTVItem = $infoparam[4]
-		$sTVItem = StringSplit($sTVItem, $sSeparator, 1)
-		If $sTVItem[0] >= $iCountLang Then
-			$setmedit = $sTVItem[$iCountLang]
-		Else
-			$setmedit = $sTVItem[1]
-		EndIf
-		$hChild = _GUICtrlTreeView_AddChild($hTV, $aLevelParent[$iLevel], $setmedit)
+		$sTVItem = $infoparam[0]
+		$hChild = _GUICtrlTreeView_AddChild($hTV, $aLevelParent[$iLevel], $sTVItem)
 		_GUICtrlTreeView_SetState($hTV, $hChild, $TVIS_EXPANDED, 1)
 		$aLevelParent[$iLevel + 1] = $hChild
 		$ParamItem = Number($infoparam[1])
 		_GUICtrlTreeView_SetItemParam($hTV, $hChild, $ParamItem)
 		_ArrayDelete($infoparam, '0 - 1')
-		_mCreateKey($oSNTV, $ParamItem, $infoparam)
+		$oSNTV.Add($ParamItem, $infoparam)
 		_GUICtrlTreeView_SetStateImageIndex($hTV, $hChild, Number($infoparam[1]))
 	Next
 	_GUICtrlTreeView_EndUpdate($hTV)
 EndFunc   ;==>_GUITreeViewEx_LoadTV
-Func _GUITreeViewEx_GetItems($hTVX)
+
+Func _GUITreeViewEx_GetItems($hTVX) ;Получить по порядку список параметров всех пунктов дерева
 	Local $hTV
 	If IsHWnd($hTVX) Then
 		$hTV = $hTVX
@@ -1949,9 +1963,23 @@ Func _GUITreeViewEx_GetItems($hTVX)
 	WEnd
 	If UBound($aAllItemsTV) > 0 Then Return $aAllItemsTV
 EndFunc   ;==>_GUITreeViewEx_GetItems
+
+Func _GUITreeViewEx_GetItemsTVX()
+	If IsObj($oSNTV) Then Return $oSNTV.Keys()
+EndFunc   ;==>_GUITreeViewEx_GetItemsTVX
+
 Func _GUITreeViewEx_GetTVX()
-	Return _mGetKeys($oSNTVEX)
+	If IsObj($oSNTVEX) Then Return $oSNTVEX.Keys()
 EndFunc   ;==>_GUITreeViewEx_GetTVX
+
+Func _GUITreeViewEx_DeleteTVX()
+	Local $aKeysTVX = $oSNTVEX.Keys()
+	For $i In $aKeysTVX
+		_GUITreeViewEx_Delete(HWnd($i), False)
+	Next
+EndFunc   ;==>_GUITreeViewEx_DeleteTVX
+
+;~ Параметр: 1 - удалить все пункты, 0 - удалить TreeView
 Func _GUITreeViewEx_Delete($hTVX, $nPart = True)
 	Local $hTvImg, $hTV
 	If IsHWnd($hTVX) Then
@@ -1960,32 +1988,43 @@ Func _GUITreeViewEx_Delete($hTVX, $nPart = True)
 		$hTV = GUICtrlGetHandle($hTVX)
 		If Not $hTV Then Return SetError(1)
 	EndIf
-	Local $aAllItemsTV = _GUITreeViewEx_GetItems($hTV)
-	If Not @error Then
-		For $i = 0 To UBound($aAllItemsTV) - 1
-			_mRemoveKey($oSNTV, $aAllItemsTV[$i])
-		Next
-		If $nPart Then
+	Local $aAllItemsTV
+	If $nPart Then
+		$aAllItemsTV = _GUITreeViewEx_GetItems($hTV)
+		If Not @error Then
+			For $i = 0 To UBound($aAllItemsTV) - 1
+				$oSNTV.Remove($aAllItemsTV[$i])
+			Next
 			_GUICtrlTreeView_DeleteAll($hTV)
-		Else
-			If _mExistsKey($oSNTVEX, String($hTV)) Then
-				$hTvImg = _mGetValueKey($oSNTVEX, String($hTV))
-				_mRemoveKey($oSNTVEX, String($hTV))
-				_GUIImageList_Destroy($hTvImg[0])
-			EndIf
-			_GUICtrlTreeView_DeleteAll($hTV)
-			_GUICtrlTreeView_Destroy($hTV)
-			If Not _mGetKeys($oSNTVEX, 1) Then
-				_GUITreeViewEx_CloseTV()
-				Return
-			EndIf
-			$g_GTVEx_aTVData = 0
 		EndIf
+	Else
+		$aAllItemsTV = _GUITreeViewEx_GetItems($hTV)
+		If Not @error Then
+			For $i = 0 To UBound($aAllItemsTV) - 1
+				$oSNTV.Remove($aAllItemsTV[$i])
+			Next
+		EndIf
+		If $oSNTVEX.Exists(String($hTV)) Then
+			$hTvImg = $oSNTVEX.Item(String($hTV))
+			$oSNTVEX.Remove(String($hTV))
+			_GUIImageList_Destroy($hTvImg[0])
+		EndIf
+		_GUICtrlTreeView_DeleteAll($hTV)
+		_GUICtrlTreeView_Destroy($hTV)
+		If Not $oSNTVEX.Count() Then
+			_GUITreeViewEx_CloseTV()
+			Return
+		EndIf
+		$g_GTVEx_aTVData = 0
 	EndIf
 	$fItemDelTV = 0
 	$UnchkUp = 0
 	$hModificationItemTV = 0
 EndFunc   ;==>_GUITreeViewEx_Delete
+
+;~ $hTV - handle\id TreeView
+;~ $aTvIco - массив, состоящий из четырех строк. в каждой строке путь к соответствующей иконке. смотри функцию _TvImg()
+;~ Иконки произвольные, назначение иконок - визуальное поределение типа элемента
 Func _GUITreeViewEx_InitTV($hTVX)
 	If IsHWnd($hTVX) Then
 		$g_GTVEx_aTVData = $hTVX
@@ -1993,10 +2032,11 @@ Func _GUITreeViewEx_InitTV($hTVX)
 		$g_GTVEx_aTVData = GUICtrlGetHandle($hTVX)
 		If Not $g_GTVEx_aTVData Then Return SetError(1)
 	EndIf
-	If Not _mGetKeys($oSNTVEX, 1) Then GUIRegisterMsg($WM_NOTIFY, '_GUITreeViewEx')
+	If Not $oSNTVEX.Count() Then GUIRegisterMsg($WM_NOTIFY, '_GUITreeViewEx')
 	Local $aInfTv[2] = [0, 0]
-	If Not _mExistsKey($oSNTVEX, String($g_GTVEx_aTVData)) Then _mCreateKey($oSNTVEX, String($g_GTVEx_aTVData), $aInfTv)
+	If Not $oSNTVEX.Exists(String($g_GTVEx_aTVData)) Then $oSNTVEX.Add(String($g_GTVEx_aTVData), $aInfTv)
 EndFunc   ;==>_GUITreeViewEx_InitTV
+
 Func _GUITreeViewEx_CloseTV()
 	GUIRegisterMsg($WM_NOTIFY, '')
 	$g_GTVEx_aTVData = 0
@@ -2009,6 +2049,7 @@ Func _GUITreeViewEx_CloseTV()
 	$nFlagKeyDn = 0
 	$nFlagSelect = 0
 EndFunc   ;==>_GUITreeViewEx_CloseTV
+
 Func _GUITreeViewEx_TvImg($hTVX, $aTvIco)
 	If UBound($aTvIco) <> 4 Then Return SetError(1)
 	For $i = 0 To UBound($aTvIco) - 1
@@ -2023,17 +2064,18 @@ Func _GUITreeViewEx_TvImg($hTVX, $aTvIco)
 	EndIf
 	Local $aInfTv
 	Local $hTvImg = _GUIImageList_Create(16, 16, 5, 3)
-	_GUIImageList_AddIcon($hTvImg, $aTvIco[0])
-	_GUIImageList_AddIcon($hTvImg, $aTvIco[1])
-	_GUIImageList_AddIcon($hTvImg, $aTvIco[2])
-	_GUIImageList_AddIcon($hTvImg, $aTvIco[3])
+	_GUIImageList_AddIcon($hTvImg, $aTvIco[0]) ;'\chk.ico' - Checkbox с отметкой
+	_GUIImageList_AddIcon($hTvImg, $aTvIco[1]) ;'\unchk.ico' - Checkbox без отметки
+	_GUIImageList_AddIcon($hTvImg, $aTvIco[2]) ;'\rd.ico' - RadioButton с отметкой
+	_GUIImageList_AddIcon($hTvImg, $aTvIco[3]) ;'\unrd.ico' - RadioButton без отметки
 	_GUICtrlTreeView_SetStateImageList($hTV, $hTvImg)
-	If _mExistsKey($oSNTVEX, String($hTV)) Then
-		$aInfTv = _mGetValueKey($oSNTVEX, String($hTV))
+	If $oSNTVEX.Exists(String($hTV)) Then
+		$aInfTv = $oSNTVEX.Item(String($hTV))
 		$aInfTv[0] = $hTvImg
-		_mSetValueKey($oSNTVEX, String($hTV), $aInfTv)
+		$oSNTVEX.Item(String($hTV)) = $aInfTv
 	EndIf
 EndFunc   ;==>_GUITreeViewEx_TvImg
+
 Func _GUITreeViewEx_GetHItem()
 	Local $tPoint = _WinAPI_GetMousePos(1, $g_GTVEx_aTVData)
 	Local $tTVHTI = _GUICtrlTreeView_HitTestEx($g_GTVEx_aTVData, DllStructGetData($tPoint, 1, 1), DllStructGetData($tPoint, 2))
@@ -2046,12 +2088,18 @@ Func _GUITreeViewEx_GetHItem()
 		EndSwitch
 	EndIf
 EndFunc   ;==>_GUITreeViewEx_GetHItem
+
 Func _GUITreeViewEx($hWnd, $iMsg, $wParam, $lParam)
 	#forceref $hWnd, $iMsg, $wParam
 	Local $hItem, $nAction, $aInfTv
-	Local $tStruct = DllStructCreate('struct;hwnd hWndFrom;uint_ptr IDFrom;INT Code;endstruct;' & 'uint Action;struct;uint OldMask;handle OldhItem;uint OldState;uint OldStateMask;' & 'ptr OldText;int OldTextMax;int OldImage;int OldSelectedImage;int OldChildren;lparam OldParam;endstruct;' & 'struct;uint NewMask;handle NewhItem;uint NewState;uint NewStateMask;' & 'ptr NewText;int NewTextMax;int NewImage;int NewSelectedImage;int NewChildren;lparam NewParam;endstruct;' & 'struct;long PointX;long PointY;endstruct', $lParam)
+	Local $tStruct = DllStructCreate('struct;hwnd hWndFrom;uint_ptr IDFrom;INT Code;endstruct;' & _
+			'uint Action;struct;uint OldMask;handle OldhItem;uint OldState;uint OldStateMask;' & _
+			'ptr OldText;int OldTextMax;int OldImage;int OldSelectedImage;int OldChildren;lparam OldParam;endstruct;' & _
+			'struct;uint NewMask;handle NewhItem;uint NewState;uint NewStateMask;' & _
+			'ptr NewText;int NewTextMax;int NewImage;int NewSelectedImage;int NewChildren;lparam NewParam;endstruct;' & _
+			'struct;long PointX;long PointY;endstruct', $lParam)
 	Local $hWndFrom = DllStructGetData($tStruct, 'hWndFrom')
-	If _mExistsKey($oSNTVEX, String($hWndFrom)) Then
+	If $oSNTVEX.Exists(String($hWndFrom)) Then
 		$g_GTVEx_aTVData = $hWndFrom
 		Switch DllStructGetData($tStruct, 'Code')
 			Case $NM_RCLICK
@@ -2059,14 +2107,15 @@ Func _GUITreeViewEx($hWnd, $iMsg, $wParam, $lParam)
 			Case $NM_CLICK
 				$MnTVs = 0
 			Case $TVN_DELETEITEMA, $TVN_DELETEITEMW
+				;~ 				$hItem = DllStructGetData($tStruct, 'NewParam')
 				$fItemDelTV = 1
 			Case $TVN_SELCHANGEDA, $TVN_SELCHANGEDW
 				$hItem = DllStructGetData($tStruct, 'NewhItem')
 				If Not $fItemDelTV Then
 					If $hItem Then
-						$aInfTv = _mGetValueKey($oSNTVEX, String($hWndFrom))
+						$aInfTv = $oSNTVEX.Item(String($hWndFrom))
 						$aInfTv[1] = $hItem
-						_mSetValueKey($oSNTVEX, String($hWndFrom), $aInfTv)
+						$oSNTVEX.Item(String($hWndFrom)) = $aInfTv
 						$hModificationItemTV = $hItem
 						If $nFlagSelect Then
 							_GUICtrlTreeView_SetState($g_GTVEx_aTVData, $hItem, $TVIS_SELECTED, False)
@@ -2080,9 +2129,9 @@ Func _GUITreeViewEx($hWnd, $iMsg, $wParam, $lParam)
 						EndIf
 					Else
 						_GUICtrlTreeView_SetSelected($g_GTVEx_aTVData, $hItem, 0)
-						$aInfTv = _mGetValueKey($oSNTVEX, String($hWndFrom))
+						$aInfTv = $oSNTVEX.Item(String($hWndFrom))
 						$aInfTv[1] = 0
-						_mSetValueKey($oSNTVEX, String($hWndFrom), $aInfTv)
+						$oSNTVEX.Item(String($hWndFrom)) = $aInfTv
 						$hModificationItemTV = 0
 						$fItemDelTV = 0
 					EndIf
@@ -2096,43 +2145,75 @@ Func _GUITreeViewEx($hWnd, $iMsg, $wParam, $lParam)
 				If DllStructGetData($tInfo, 'Text') <> 0 Then
 					Local $tBuffer = DllStructCreate('wchar Text[' & DllStructGetData($tInfo, 'TextMax') & ']', DllStructGetData($tInfo, 'Text'))
 					If StringStripWS(DllStructGetData($tBuffer, 'Text'), 3) Then
-						$sNewTxtItemTV = StringReplace(StringRegExpReplace(DllStructGetData($tBuffer, 'Text'), '[*~|#]', ' '), '\', '')
+						$sNewTxtItemTV = StringReplace(StringRegExpReplace(DllStructGetData($tBuffer, 'Text'), '[*~|#><]', ' '), '\', '')
 						_GUICtrlTreeView_SetText($g_GTVEx_aTVData, $hModificationItemTV, $sNewTxtItemTV)
-						_TextEndTV($g_GTVEx_aTVData)
+						;~ 						_TextEndTV($g_GTVEx_aTVData)
 					EndIf
 				EndIf
 		EndSwitch
 	EndIf
 	Return $GUI_RUNDEFMSG
 EndFunc   ;==>_GUITreeViewEx
-Func _TextEndTV($hTVX)
-	_GUICtrlTreeView_EndEdit($hTVX)
-	$nNewTxtItemTV = 1
-EndFunc   ;==>_TextEndTV
+
+Func _ReactchangeCHK()
+	$UnchkUp = Not $UnchkUp
+EndFunc   ;==>_ReactchangeCHK
+
+;~ Снимает отметки со всех пунктов TreeView
+Func _GUITreeViewEx_UnCheckAll($hTVX)
+	Local $hTV
+	If IsHWnd($hTVX) Then
+		$hTV = $hTVX
+	Else
+		$hTV = GUICtrlGetHandle($hTVX)
+		If Not $hTV Then Return SetError(-1)
+	EndIf
+	If Not _GUICtrlTreeView_GetCount($hTV) Then Return SetError(1)
+	Local $ParamItem, $valparam
+	Local $hHandle = _GUICtrlTreeView_GetFirstItem($hTV)
+	While 1
+		$ParamItem = _GUICtrlTreeView_GetItemParam($hTV, $hHandle)
+		$valparam = $oSNTV.Item($ParamItem)
+		Switch Number($valparam[1])
+			Case 1
+				_GUICtrlTreeView_SetStateImageIndex($hTV, $hHandle, 2)
+				$valparam[1] = 2
+			Case 3
+				_GUICtrlTreeView_SetStateImageIndex($hTV, $hHandle, 4)
+				$valparam[1] = 4
+		EndSwitch
+		$oSNTV.Item($ParamItem) = $valparam
+		_GUICtrlTreeView_SetSelected($hTV, $hHandle, False)
+		$hHandle = _GUICtrlTreeView_GetNext($hTV, $hHandle)
+		If Not $hHandle Then ExitLoop
+	WEnd
+EndFunc   ;==>_GUITreeViewEx_UnCheckAll
+
 Func _TVAutoSetImg($hItem, $UpUnchk)
+	If Not $hItem Then Return
 	Local $valparam, $vpp, $ptpm
 	Local $getparam = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hItem)
 	Local $hParent = _GUICtrlTreeView_GetParentHandle($g_GTVEx_aTVData, $hItem)
 	If $hParent Then
 		$ptpm = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hParent)
-		$vpp = _mGetValueKey($oSNTV, $ptpm)
+		$vpp = $oSNTV.Item($ptpm)
 	EndIf
-	$valparam = _mGetValueKey($oSNTV, $getparam)
+	$valparam = $oSNTV.Item($getparam)
 	Switch Number($valparam[1])
 		Case 1
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hItem, 2)
 			$valparam[1] = 2
-			_mSetValueKey($oSNTV, $getparam, $valparam)
-			If $hParent Then
-				If $UpUnchk Then _AutoUnCheckParents($hItem)
-				__TVUnCheck($hItem, False)
-			Else
-				__TVUnCheck($hItem, False)
-			EndIf
+			$oSNTV.Item($getparam) = $valparam
+			;~ 			If $hParent Then
+			;~ 				If $UpUnchk Then _AutoUnCheckParents($hItem)
+			;~ 				__TVUnCheck($hItem, False)
+			;~ 			Else
+			__TVUnCheck($hItem, False)
+			;~ 			EndIf
 		Case 2
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hItem, 1)
 			$valparam[1] = 1
-			_mSetValueKey($oSNTV, $getparam, $valparam)
+			$oSNTV.Item($getparam) = $valparam
 			If $hParent Then
 				Switch Number($vpp[1])
 					Case 2, 4
@@ -2146,7 +2227,7 @@ Func _TVAutoSetImg($hItem, $UpUnchk)
 		Case 4
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hItem, 3)
 			$valparam[1] = 3
-			_mSetValueKey($oSNTV, $getparam, $valparam)
+			$oSNTV.Item($getparam) = $valparam
 			If $hParent Then
 				Switch Number($vpp[1])
 					Case 2, 4
@@ -2164,15 +2245,15 @@ Func _TVAutoSetImg($hItem, $UpUnchk)
 					While 1
 						$ParamItem = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $Child)
 						If StringCompare($getparam, $ParamItem) Then
-							$valparam = _mGetValueKey($oSNTV, $ParamItem)
+							$valparam = $oSNTV.Item($ParamItem)
 							Switch Number($valparam[1])
 								Case 1
 									$valparam[1] = 2
-									_mSetValueKey($oSNTV, $ParamItem, $valparam)
+									$oSNTV.Item($ParamItem) = $valparam
 									_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $Child, 2)
 								Case 3
 									$valparam[1] = 4
-									_mSetValueKey($oSNTV, $ParamItem, $valparam)
+									$oSNTV.Item($ParamItem) = $valparam
 									_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $Child, 4)
 							EndSwitch
 							__TVUnCheck($Child, False)
@@ -2184,13 +2265,16 @@ Func _TVAutoSetImg($hItem, $UpUnchk)
 			EndIf
 	EndSwitch
 EndFunc   ;==>_TVAutoSetImg
+
+;----------------------------------------------------------------------------------------------------------------------
+
 Func _AutoUnCheckParents($hPassedItem)
 	Local $hParent = _GUICtrlTreeView_GetParentHandle($g_GTVEx_aTVData, $hPassedItem)
 	If Not $hParent Then Return
 	Local $vch = __TVVerifyCheck($hParent)
 	If Not $vch Then
 		Local $ParamItem = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hParent)
-		Local $valparam = _mGetValueKey($oSNTV, $ParamItem)
+		Local $valparam = $oSNTV.Item($ParamItem)
 		Switch Number($valparam[1])
 			Case 1
 				_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hParent, 2)
@@ -2199,10 +2283,11 @@ Func _AutoUnCheckParents($hPassedItem)
 				_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hParent, 4)
 				$valparam[1] = 4
 		EndSwitch
-		_mSetValueKey($oSNTV, $ParamItem, $valparam)
+		$oSNTV.Item($ParamItem) = $valparam
 		_AutoUnCheckParents($hParent)
 	EndIf
 EndFunc   ;==>_AutoUnCheckParents
+
 Func __TVVerifyCheck($hPassedItem)
 	Local $hChild = _GUICtrlTreeView_GetFirstChild($g_GTVEx_aTVData, $hPassedItem)
 	If Not $hChild Then Return
@@ -2210,7 +2295,7 @@ Func __TVVerifyCheck($hPassedItem)
 	Local $vlpm
 	While 1
 		$ParamItem = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hChild)
-		$vlpm = _mGetValueKey($oSNTV, $ParamItem)
+		$vlpm = $oSNTV.Item($ParamItem)
 		Switch Number($vlpm[1])
 			Case 1, 3
 				Return 1
@@ -2219,11 +2304,15 @@ Func __TVVerifyCheck($hPassedItem)
 		If Not $hChild Then ExitLoop
 	WEnd
 EndFunc   ;==>__TVVerifyCheck
+
+;-----------------------------------------------------------------------------------------------------------------------
+
+
 Func _AutoCheckParents($hPassedItem)
 	Local $hParent = _GUICtrlTreeView_GetParentHandle($g_GTVEx_aTVData, $hPassedItem)
 	If Not $hParent Then Return
 	Local $ParamItem = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hParent)
-	Local $valparam = _mGetValueKey($oSNTV, $ParamItem)
+	Local $valparam = $oSNTV.Item($ParamItem)
 	Switch Number($valparam[1])
 		Case 2
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hParent, 1)
@@ -2232,10 +2321,11 @@ Func _AutoCheckParents($hPassedItem)
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hParent, 3)
 			$valparam[1] = 3
 	EndSwitch
-	_mSetValueKey($oSNTV, $ParamItem, $valparam)
+	$oSNTV.Item($ParamItem) = $valparam
 	If Number($valparam[0]) Then _TVUnCheckOther($hPassedItem, $hParent)
 	_AutoCheckParents($hParent)
 EndFunc   ;==>_AutoCheckParents
+
 Func _TVUnCheckOther($hPassedItem, $hParent)
 	Local $ncompare = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hPassedItem)
 	Local $Child, $ParamItem, $valparam
@@ -2244,7 +2334,7 @@ Func _TVUnCheckOther($hPassedItem, $hParent)
 	While 1
 		$ParamItem = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $Child)
 		If StringCompare($ncompare, $ParamItem) Then
-			$valparam = _mGetValueKey($oSNTV, $ParamItem)
+			$valparam = $oSNTV.Item($ParamItem)
 			Switch Number($valparam[1])
 				Case 1
 					_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $Child, 2)
@@ -2253,17 +2343,18 @@ Func _TVUnCheckOther($hPassedItem, $hParent)
 					_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $Child, 4)
 					$valparam[1] = 4
 			EndSwitch
-			_mSetValueKey($oSNTV, $ParamItem, $valparam)
+			$oSNTV.Item($ParamItem) = $valparam
 			__TVUnCheck($Child, False)
 		EndIf
 		$Child = _GUICtrlTreeView_GetNextChild($g_GTVEx_aTVData, $Child)
 		If Not $Child Then ExitLoop
 	WEnd
 EndFunc   ;==>_TVUnCheckOther
+
 Func __TVUnCheck($hPassedItem, $bState, $itemf = False)
 	Local $checkpram, $valparam
 	$checkpram = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hPassedItem)
-	$valparam = _mGetValueKey($oSNTV, $checkpram)
+	$valparam = $oSNTV.Item($checkpram)
 	Switch Number($valparam[1])
 		Case 1
 			If Not $bState Then
@@ -2286,12 +2377,12 @@ Func __TVUnCheck($hPassedItem, $bState, $itemf = False)
 				$valparam[1] = 3
 			EndIf
 	EndSwitch
-	_mSetValueKey($oSNTV, $checkpram, $valparam)
+	$oSNTV.Item($checkpram) = $valparam
 	Local $hChild = _GUICtrlTreeView_GetFirstChild($g_GTVEx_aTVData, $hPassedItem)
 	If Not $hChild Then Return
 	While 1
 		$checkpram = _GUICtrlTreeView_GetItemParam($g_GTVEx_aTVData, $hChild)
-		$valparam = _mGetValueKey($oSNTV, $checkpram)
+		$valparam = $oSNTV.Item($checkpram)
 		Switch Number($valparam[1])
 			Case 1
 				If Not $bState Then
@@ -2314,7 +2405,7 @@ Func __TVUnCheck($hPassedItem, $bState, $itemf = False)
 					$valparam[1] = 3
 				EndIf
 		EndSwitch
-		_mSetValueKey($oSNTV, $checkpram, $valparam)
+		$oSNTV.Item($checkpram) = $valparam
 		__TVUnCheck($hChild, $bState, $itemf)
 		If Not $itemf Then
 			$hChild = _GUICtrlTreeView_GetNextChild($g_GTVEx_aTVData, $hChild)
@@ -2324,6 +2415,67 @@ Func __TVUnCheck($hPassedItem, $bState, $itemf = False)
 		If Not $hChild Then ExitLoop
 	WEnd
 EndFunc   ;==>__TVUnCheck
+
+;~ Дочерние подпункты первого уровня выбранного пункта будут иметь поведение RadioButton. то есть, будет возможен выбор только одного подпункта
+;~ При повторной использовании функции для пункта его дочерним подпунктам возвращается исходное поведение - Checkbox
+Func _GUITreeViewEx_ChooseOnlyOne($hTVX)
+	Local $hTV
+	If IsHWnd($hTVX) Then
+		$hTV = $hTVX
+	Else
+		$hTV = GUICtrlGetHandle($hTVX)
+		If Not $hTV Then Return SetError(1)
+	EndIf
+	Local $hParent, $aInfTv
+	$aInfTv = $oSNTVEX.Item(String($hTV))
+	$hParent = $aInfTv[1]
+	If Not $hParent Then Return
+	Local $nameparent = _GUICtrlTreeView_GetItemParam($hTV, $hParent)
+	Local $aDataItem = $oSNTV.Item($nameparent)
+	If Not Number($aDataItem[0]) Then
+		$aDataItem[0] = 1
+		Switch Number($aDataItem[1])
+			Case 1
+				$aDataItem[1] = 2
+				_GUICtrlTreeView_SetStateImageIndex($hTV, $hParent, 2)
+			Case 3
+				$aDataItem[1] = 4
+				_GUICtrlTreeView_SetStateImageIndex($hTV, $hParent, 4)
+		EndSwitch
+		$oSNTV.Item($nameparent) = $aDataItem
+		_TVCHRD($hTV, $hParent, 4)
+		__TVUnCheck($hParent, False)
+	ElseIf Number($aDataItem[0]) Then
+		$aDataItem[0] = 0
+		$oSNTV.Item($nameparent) = $aDataItem
+		_TVCHRD($hTV, $hParent, 2)
+		__TVUnCheck($hParent, False)
+	EndIf
+	_AutoUnCheckParents($hParent)
+EndFunc   ;==>_GUITreeViewEx_ChooseOnlyOne
+
+Func _TVCHRD($hTV, $hPassedItem, $chType)
+	Local $checkpram, $valparam
+	Local $hChild = _GUICtrlTreeView_GetFirstChild($hTV, $hPassedItem)
+	If Not $hChild Then Return
+	While 1
+		$checkpram = _GUICtrlTreeView_GetItemParam($hTV, $hChild)
+		$valparam = $oSNTV.Item($checkpram)
+		Switch $chType
+			Case 4
+				$valparam[1] = 4
+				_GUICtrlTreeView_SetStateImageIndex($hTV, $hChild, 4)
+			Case 2
+				$valparam[1] = 2
+				_GUICtrlTreeView_SetStateImageIndex($hTV, $hChild, 2)
+		EndSwitch
+		$oSNTV.Item($checkpram) = $valparam
+		$hChild = _GUICtrlTreeView_GetNextChild($hTV, $hChild)
+		If Not $hChild Then ExitLoop
+	WEnd
+EndFunc   ;==>_TVCHRD
+
+;~ Возвращает массив данных текущего пункта, если не указан $ParamItem
 Func _GUITreeViewEx_GetItemData($hTVX, $ParamItem = 0, $nTechData = 0)
 	Local $hTV
 	If IsHWnd($hTVX) Then
@@ -2332,16 +2484,16 @@ Func _GUITreeViewEx_GetItemData($hTVX, $ParamItem = 0, $nTechData = 0)
 		$hTV = GUICtrlGetHandle($hTVX)
 		If Not $hTV Then Return SetError(1)
 	EndIf
-	If Not _mExistsKey($oSNTVEX, String($hTV)) Then Return SetError(-1)
+	If Not $oSNTVEX.Exists(String($hTV)) Then Return SetError(-1)
 	Local $aInfTv
 	Local $CurrentParam = Number($ParamItem)
 	If Not $CurrentParam Then
-		$aInfTv = _mGetValueKey($oSNTVEX, String($hTV))
+		$aInfTv = $oSNTVEX.Item(String($hTV))
 		If Not $aInfTv[1] Then Return SetError(1)
 		$CurrentParam = _GUICtrlTreeView_GetItemParam($hTV, $aInfTv[1])
 	EndIf
-	If Not _mExistsKey($oSNTV, $CurrentParam) Then Return SetError(2)
-	Local $aDataItem = _mGetValueKey($oSNTV, $CurrentParam)
+	If Not $oSNTV.Exists($CurrentParam) Then Return SetError(2)
+	Local $aDataItem = $oSNTV.Item($CurrentParam)
 	If Not $nTechData Then _ArrayDelete($aDataItem, '0 - 1')
 	If Not UBound($aDataItem) Then
 		Return SetError(3)
@@ -2349,6 +2501,67 @@ Func _GUITreeViewEx_GetItemData($hTVX, $ParamItem = 0, $nTechData = 0)
 		Return $aDataItem
 	EndIf
 EndFunc   ;==>_GUITreeViewEx_GetItemData
+
+;~ Обновляет данные пункта. Данные заменются полностью
+;~ $aUserData - Массив данных для обновления
+;~ Данные обновляются в текущем пункте, если не указан $ParamItem
+;~ Для записи многострочного текста заменяйте @CRLF или @LF на спецсимвол
+Func _GUITreeViewEx_SetItemData($hTVX, $aUserData, $ParamItem = 0, $nTechData = 0)
+	Local $hTV
+	If IsHWnd($hTVX) Then
+		$hTV = $hTVX
+	Else
+		$hTV = GUICtrlGetHandle($hTVX)
+		If Not $hTV Then Return SetError(1)
+	EndIf
+	If Not $oSNTVEX.Exists(String($hTV)) Then Return SetError(-1)
+	Local $aInfTv
+	Local $checkarray = UBound($aUserData)
+	If Not $checkarray Then Return SetError(1)
+	Local $CurrentParam = Number($ParamItem)
+	If Not $CurrentParam Then
+		$aInfTv = $oSNTVEX.Item(String($hTV))
+		If Not $aInfTv[1] Then Return SetError(2)
+		$CurrentParam = _GUICtrlTreeView_GetItemParam($hTV, $aInfTv[1])
+	EndIf
+	If Not $oSNTV.Exists($CurrentParam) Then Return SetError(3)
+	Local $aDataItem = $oSNTV.Item($CurrentParam)
+	If Not $nTechData Then
+		Local $aTechData[2] = [$aDataItem[0], $aDataItem[1]]
+		_ArrayConcatenate($aTechData, $aUserData)
+		If @error Then Return SetError(4)
+		$oSNTV.Item($CurrentParam) = $aTechData
+	Else
+		$oSNTV.Item($CurrentParam) = $aUserData
+	EndIf
+EndFunc   ;==>_GUITreeViewEx_SetItemData
+
+;~ Удаляет данные пункта
+Func _GUITreeViewEx_DelItemData($hTVX, $ParamItem = 0, $nTechData = 0)
+	Local $hTV
+	If IsHWnd($hTVX) Then
+		$hTV = $hTVX
+	Else
+		$hTV = GUICtrlGetHandle($hTVX)
+		If Not $hTV Then Return SetError(1)
+	EndIf
+	If Not $oSNTVEX.Exists(String($hTV)) Then Return SetError(-1)
+	Local $aInfTv
+	Local $CurrentParam = Number($ParamItem)
+	If Not $CurrentParam Then
+		$aInfTv = $oSNTVEX.Item(String($hTV))
+		If Not $aInfTv[1] Then Return SetError(1)
+		$CurrentParam = _GUICtrlTreeView_GetItemParam($hTV, $aInfTv[1])
+	EndIf
+	If Not $oSNTV.Exists($CurrentParam) Then Return SetError(2)
+	If Not $nTechData Then
+		Local $aDataItem = $oSNTV.Item($CurrentParam)
+		Local $aTechData[2] = [$aDataItem[0], $aDataItem[1]]
+		$oSNTV.Item($CurrentParam) = $aTechData
+	Else
+		$oSNTV.Item($CurrentParam) = ''
+	EndIf
+EndFunc   ;==>_GUITreeViewEx_DelItemData
 Func _FileListToArray($sFilePath, $sFilter = "*", $iFlag = $FLTA_FILESFOLDERS, $bReturnPath = False)
 	Local $sDelimiter = "|", $sFileList = "", $sFileName = "", $sFullPath = ""
 	$sFilePath = StringRegExpReplace($sFilePath, "[\\/]+$", "") & "\"
@@ -2561,9 +2774,20 @@ $Instjmplang[34] = 'Продолжить'
 
 Opt('GUICloseOnESC', 0)
 Opt('TrayMenuMode', 1)
-Opt('MustDeclareVars', 1)
-Global $oSNW[]
-Global $oMod[]
+Global $oSNW = ObjCreate('Scripting.Dictionary')
+Sleep(500)
+If $oSNW = 0 Then
+	MsgBox(16, '', 'Object Scripting.Dictionary.oSNW - error')
+	Exit
+EndIf
+$oSNW.CompareMode = 1
+Global $oMod = ObjCreate('Scripting.Dictionary')
+Sleep(500)
+If $oMod = 0 Then
+	MsgBox(16, '', 'Object Scripting.Dictionary.oMod - error')
+	Exit
+EndIf
+$oMod.CompareMode = 1
 Global $stoppr, $sNameMod[0], $flhide, $UpIdC = 0
 Global $WOTP, $Title, $Mini, $Close, $tmphtv, $objw, $objc, $CurGui = 0, $volume = 100
 Global $wkdir = @TempDir & '\wkdirjmp3', $pidwr, $curani = $wkdir & '\arrow.ani', $curc = $wkdir & '\arrow.cur', $force_a = $wkdir & '\force.ani', $force_c = $wkdir & '\force.cur'
@@ -2606,11 +2830,25 @@ Func _Getinilang()
 		EndIf
 	EndIf
 EndFunc   ;==>_Getinilang
-Func _PageCreate(ByRef $mMap, $vKey)
-	Local $mMap1[]
-	Local $mMap2[]
-	Local $aMap[2] = [$mMap1, $mMap2]
-	_mCreateKey($mMap, $vKey, $aMap)
+Func _PageCreate(ByRef $obj, $key)
+	Local $one = ObjCreate('Scripting.Dictionary')
+	Local $k
+	Do
+		If $k = 50 Then Return SetError(1)
+		$k += 1
+		Sleep(10)
+	Until VarGetType($one) = 'Object'
+	$one.CompareMode = 1
+	Local $two = ObjCreate('Scripting.Dictionary')
+	$k = 0
+	Do
+		If $k = 50 Then Return SetError(1)
+		$k += 1
+		Sleep(10)
+	Until VarGetType($two) = 'Object'
+	$two.CompareMode = 1
+	Local $aObj[2] = [$one, $two]
+	$obj.Add($key, $aObj)
 EndFunc   ;==>_PageCreate
 Func _CGW($NameExe, $GameCompany)
 	Local $all_key[3]
@@ -2826,7 +3064,7 @@ Func _EXF()
 	EndIf
 EndFunc   ;==>_EXF
 Func _CurGui()
-	Local $getg = _mGetValueKey($objw, 0)
+	Local $getg = $objw.Item(0)
 	$backlight = Number($getg[9])
 	If $backlight = 3 Then $backlightcolor = Number($getg[10])
 	If FileExists($curani) Then
@@ -2873,23 +3111,10 @@ Func _CurGui()
 	$VerGameInst = $aSPLinfo[8]
 	$setpathgame = _CGW($GetPathExe, $sNameG)
 	If $setpathgame = '' Then MsgBox(64, 'Path', $Instjmplang[0])
-	If _mExistsKey($oMod, 'path') Then
-		Local $stpath = _mGetValueKey($oMod, 'path')
+	If $oMod.Exists('path') Then
+		Local $stpath = $oMod.Item('path')
 		GUICtrlSetData($stpath, $setpathgame)
 	EndIf
-;~ 	Local $aDriveAll = DriveGetDrive('all')
-;~ 	If Not @error Then
-;~ 		Local $hOpenTest
-;~ 		For $i = 1 To $aDriveAll[0]
-;~ 			If DriveGetType($aDriveAll[$i]) = 'Fixed' Then
-;~ 				$hOpenTest = FileOpen($aDriveAll[$i] & '\test.txt', 10)
-;~ 				Sleep(100)
-;~ 				FileWrite($hOpenTest, 'test')
-;~ 				FileClose($hOpenTest)
-;~ 				FileDelete($aDriveAll[$i] & '\test.txt')
-;~ 			EndIf
-;~ 		Next
-;~ 	EndIf
 	GUISetState(@SW_SHOW, $WOTP)
 	WinActivate($WOTP)
 	_WinAPI_RedrawWindow($WOTP)
@@ -2928,8 +3153,8 @@ Func _CHPATH()
 	Local $odg = FileSelectFolder($Instjmplang[2], @HomeDrive, 0, '', $WOTP)
 	If Not @error Then
 		$setpathgame = $odg
-		If _mExistsKey($oMod, 'path') Then
-			Local $stpath = _mGetValueKey($oMod, 'path')
+		If $oMod.Exists('path') Then
+			Local $stpath = $oMod.Item('path')
 			GUICtrlSetData($stpath, $setpathgame)
 		EndIf
 	Else
@@ -2939,13 +3164,13 @@ EndFunc   ;==>_CHPATH
 Func _GetInfoMod()
 	$sListModsF = ''
 	Local $getst, $gtm, $objc1
-	Local $infpg = _mGetKeys($oSNW)
+	Local $infpg = $oSNW.Keys()
 	For $pg In $infpg
-		$objc1 = _mGetValueKey($oSNW, $pg)[1]
-		$gtm = _mGetKeys($objc1)
+		$objc1 = $oSNW.Item($pg)[1]
+		$gtm = $objc1.Keys()
 		If Not IsArray($gtm) Then ContinueLoop
 		For $i In $gtm
-			$getst = _mGetValueKey($objc1, $i)
+			$getst = $objc1.Item($i)
 			Switch String($getst[0])
 				Case 'mod'
 					If $getst[23] = 1 Or GUICtrlRead($i) = 1 Then
@@ -2985,7 +3210,7 @@ Func _INST()
 		Return MsgBox(64, '', $Instjmplang[4], 0, $WOTP)
 	EndIf
 	If $curidpos Then
-		Local $setoldid = _mGetValueKey($objc, $curidpos)
+		Local $setoldid = $objc.Item($curidpos)
 		If UBound($setoldid) = 26 Then
 			If $backlight = 2 Then
 				Local $gp1 = ControlGetPos($WOTP, '', $curidpos)
@@ -3004,11 +3229,11 @@ Func _INST()
 		EndIf
 		$curidpos = 0
 	EndIf
-	If _mExistsKey($oSNW, 'page' & $CurGui + 1) Then _PAGEBN(1)
+	If $oSNW.Exists('page' & $CurGui + 1) Then _PAGEBN(1)
 	_EXMOD()
 	If @error Then
 		Local $splw, $oneP, $delcurfule
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[5])
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[5])
 		Local $error = @error
 		If $aWrex <> '' Then
 			$splw = StringSplit($aWrex, @LF, 3)
@@ -3030,13 +3255,13 @@ Func _INST()
 				GUICtrlSetData($iPercId, $iPercData)
 			Next
 		EndIf
-		If _mExistsKey($oSNW, 'page' & $CurGui + 1) Then _PAGEBN(1)
+		If $oSNW.Exists('page' & $CurGui + 1) Then _PAGEBN(1)
 		$iPercData = 0
 		GUICtrlSetData($iPercId, $iPercData)
 		AdlibUnRegister('PlayAnim')
 		Switch $error
 			Case -1, -2
-				If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[6])
+				If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[6])
 				$iPercData = 0
 				GUICtrlSetData($iPercId, $iPercData)
 				$flinstset = 0
@@ -3046,7 +3271,7 @@ Func _INST()
 				Dim $sNameMod[0]
 				Return MsgBox(16, '', $Instjmplang[7] & @CRLF & $Instjmplang[8] & ' - ' & $error, 0, $WOTP)
 			Case 1
-				If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[6])
+				If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[6])
 				$iPercData = 0
 				GUICtrlSetData($iPercId, $iPercData)
 				$flinstset = 0
@@ -3060,7 +3285,7 @@ Func _INST()
 	_COPYMODS()
 	If @error Then
 		Local $splw, $error = @error, $oneP, $delcurfule
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[5])
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[5])
 		If $aWrex <> '' Then
 			$splw = StringSplit($aWrex, @LF, 3)
 			$delcurfule = UBound($splw)
@@ -3083,15 +3308,15 @@ Func _INST()
 		EndIf
 		$iPercData = 0
 		GUICtrlSetData($iPercId, $iPercData)
-		If _mExistsKey($oSNW, 'page' & $CurGui + 1) Then _PAGEBN(1)
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[6])
+		If $oSNW.Exists('page' & $CurGui + 1) Then _PAGEBN(1)
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[6])
 		AdlibUnRegister('PlayAnim')
 		Switch $error
 			Case -1, -2
 				MsgBox(16, '', $Instjmplang[9] & @CRLF & $Instjmplang[8] & ' - ' & $error, 0, $WOTP)
 		EndSwitch
 	Else
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[10])
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[10])
 		Local $gtprname = StringStripWS(FileGetVersion($PathSFX, 'ProductName'), 3)
 		Local $unmod, $unico
 		If $gtprname = '' Then
@@ -3124,8 +3349,8 @@ Func _INST()
 		FileCreateShortcut($unmod & '\AutoIt3.exe', @DesktopDir & '\' & $gtprname & '.lnk', $unmod, '"unmod.a3x"', $Instjmplang[11] & ' ' & $gtprname, $unico)
 	EndIf
 	AdlibUnRegister('PlayAnim')
-	If _mExistsKey($oSNW, 'page' & $CurGui + 1) Then _PAGEBN(1)
-	If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[12])
+	If $oSNW.Exists('page' & $CurGui + 1) Then _PAGEBN(1)
+	If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[12])
 	$iPercData = 0
 	GUICtrlSetData($iPercId, $iPercData)
 	$flinstset = 0
@@ -3137,9 +3362,9 @@ EndFunc   ;==>_INST
 ;~ $aDataZipPos - array is written during compilation
 Func _EXMOD()
 	If UBound($exmods) = 0 Then Return
-	If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[13])
+	If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[13])
 	_ExtractFiles($exmods, $wkdir, $aDataZipPos, @ScriptFullPath)
-	If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[14])
+	If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[14])
 	$sListModsF = StringTrimRight($sListModsF, 1)
 	Local $SplLf = StringSplit($sListModsF, @LF), $aszFileName, $GetCountPath, $sStringPathBlitz
 	For $i = 1 To $SplLf[0]
@@ -3154,7 +3379,7 @@ Func _EXMOD()
 	$sStringPathBlitz = StringTrimRight($sStringPathBlitz, 1)
 	$aszFileName = StringSplit($sStringPathBlitz, @LF, 3)
 	If $aszFileName[0] = '' Then Return SetError(-5)
-	If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[15])
+	If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[15])
 	Local $nCountMvF = UBound($aszFileName) - 1
 	For $i = 0 To $nCountMvF
 		If $stoppr Then
@@ -3189,7 +3414,7 @@ Func _COPYMODS()
 	Local $pr7za, $7zRead, $7zproc
 	For $i = 0 To UBound($exmods) - 1
 		$percpart = 100 / $aProgperc[$i]
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $sNameMod[$i])
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $sNameMod[$i])
 		$7zRead = ''
 		$pr7za = Run($7zaPath & ' x -bsp2 -pshooting_at_slip "' & $wkdir & '\' & $exmods[$i] & '" -o"' & $setpathgame & '"' & ' -y -r- -aoa -i!Data', '', @SW_HIDE, 0x8)
 		If @error Then Return SetError(-1)
@@ -3247,7 +3472,7 @@ Func _COPYMODS()
 	GUICtrlSetData($iPercId, $iPercData)
 	Sleep(500)
 	If UBound($ALLTTF) > 0 Then
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[16])
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[16])
 		For $i = 0 To UBound($ALLTTF) - 1
 			_FontInstall($ALLTTF[$i])
 			$iPercData = Floor($i / (UBound($ALLTTF) - 1) * 100)
@@ -3258,7 +3483,7 @@ Func _COPYMODS()
 		Sleep(500)
 	EndIf
 	If FileExists($wkdir & '\rwconf.txt') Then
-		If _mExistsKey($oMod, 'info' & $CurGui) Then GUICtrlSetData(_mGetValueKey($oMod, 'info' & $CurGui), $Instjmplang[17])
+		If $oMod.Exists('info' & $CurGui) Then GUICtrlSetData($oMod.Item('info' & $CurGui), $Instjmplang[17])
 		_RWCONF($clip)
 		If @error Then Return SetError(@error)
 	EndIf
@@ -3366,8 +3591,8 @@ Func _GUITreeViewEx_Scroll($nParam)
 	Local $dvis, $Hit, $vc, $gt, $prch, $visf, $getparam, $sGV = ''
 	Local $CursorInfoW = GUIGetCursorInfo($WOTP)
 	If Not @error Then
-		If _mExistsKey($objc, $CursorInfoW[4]) Then
-			$getparam = _mGetValueKey($objc, $CursorInfoW[4])
+		If $objc.Exists($CursorInfoW[4]) Then
+			$getparam = $objc.Item($CursorInfoW[4])
 			If IsArray($getparam) Then $sGV = String($getparam[1])
 		EndIf
 		If GUICtrlGetHandle($CursorInfoW[4]) = $g_GTVEx_aTVData Or $sGV == 'bck0' Then
@@ -3423,24 +3648,19 @@ Func _GetInfoModTV()
 	Next
 EndFunc   ;==>_GetInfoModTV
 Func _CreateTVLoad()
-	Local $backwinpic, $aINFCTRL, $WoTchild, $hLoadTV, $aGetObj, $objcfp, $objwfp, $gf, $nATV = UBound($aLoadTV) - 1
-	Local $asettv[2]
+	Local $backwinpic, $aINFCTRL, $WoTchild, $hLoadTV, $aGetObj, $objcfp, $gf, $nATV = UBound($aLoadTV) - 1
 	For $i = $nATV To 0 Step -1
 		$aINFCTRL = $aLoadTV[$i][0]
 		$backwinpic = GUICtrlCreatePic('', $aINFCTRL[2], $aINFCTRL[3], $aINFCTRL[4], $aINFCTRL[5])
 		DllCall('UxTheme.dll', 'uint', 'SetWindowTheme', 'hwnd', GUICtrlGetHandle($backwinpic), 'wstr', '', 'wstr', '')
 		_SetImage($backwinpic, $imgbackw, $aINFCTRL[4], $aINFCTRL[5], -1)
 		GUICtrlSetPos($backwinpic, $aINFCTRL[2], $aINFCTRL[3], $aINFCTRL[4], $aINFCTRL[5])
-		$aGetObj = _mGetValueKey($oSNW, 'page' & $aLoadTV[$i][1])
-		$objwfp = $aGetObj[0]
+		$aGetObj = $oSNW.Item('page' & $aLoadTV[$i][1])
 		$objcfp = $aGetObj[1]
 		$aINFCTRL[0] = 'pic'
 		$aINFCTRL[1] = 'bck0'
 		$aINFCTRL[9] = 64
-		_mCreateKey($objcfp, $backwinpic, $aINFCTRL)
-		$asettv[0] = $objwfp
-		$asettv[1] = $objcfp
-		_mSetValueKey($oSNW, 'page' & $aLoadTV[$i][1], $asettv)
+		$objcfp.Add($backwinpic, $aINFCTRL)
 		GUICtrlSetState($backwinpic, 64)
 		If $aLoadTV[$i][1] > 0 Then GUICtrlSetState($backwinpic, $GUI_HIDE)
 	Next
@@ -3449,25 +3669,22 @@ Func _CreateTVLoad()
 		$WoTchild = GUICreate("", $aINFCTRL[4], $aINFCTRL[5], $aINFCTRL[2], $aINFCTRL[3], $WS_POPUP, BitOR($WS_EX_LAYERED, $WS_EX_MDICHILD), $WOTP)
 		GUISetBkColor(0x000000, $WoTchild)
 		$hLoadTV = GUICtrlCreateTreeView(0, 0, $aINFCTRL[4] + 18, $aINFCTRL[5], BitOR($TVS_DISABLEDRAGDROP, $TVS_NOHSCROLL, $TVS_NOTOOLTIPS, $TVS_HASLINES, $TVS_LINESATROOT, $TVS_HASBUTTONS))
+		;~ 		DllCall('UxTheme.dll', 'uint', 'SetWindowTheme', 'hwnd', GUICtrlGetHandle($hLoadTV), 'wstr', '', 'wstr', '')
 		$gf = StringSplit($aINFCTRL[8], '!')
 		GUICtrlSetFont($hLoadTV, $gf[1], $gf[2], $gf[3], $gf[4])
 		GUICtrlSetColor($hLoadTV, $aINFCTRL[10])
 		GUICtrlSetBkColor($hLoadTV, 0x000000)
-		$aGetObj = _mGetValueKey($oSNW, 'page' & $aLoadTV[$i][1])
-		$objwfp = $aGetObj[0]
+		$aGetObj = $oSNW.Item('page' & $aLoadTV[$i][1])
 		$objcfp = $aGetObj[1]
 		$aINFCTRL[0] = 'treeview'
 		$aINFCTRL[1] = $WoTchild
 		$aINFCTRL[2] = 0
 		$aINFCTRL[3] = 0
 		$aINFCTRL[9] = 64
-		_mCreateKey($objcfp, $hLoadTV, $aINFCTRL)
-		$asettv[0] = $objwfp
-		$asettv[1] = $objcfp
-		_mSetValueKey($oSNW, 'page' & $aLoadTV[$i][1], $asettv)
+		$objcfp.Add($hLoadTV, $aINFCTRL)
 		_GUITreeViewEx_InitTV($hLoadTV)
 		_GUITreeViewEx_TvImg($hLoadTV, $aIco)
-		_GUITreeViewEx_LoadTV($hLoadTV, $wkdir & '\page' & $aLoadTV[$i][1] & '.jmp3', 'TV', 'TV', $iCHLangPJ, '{lang}')
+		_GUITreeViewEx_LoadTV($hLoadTV, $wkdir & '\page' & $aLoadTV[$i][1] & '.jmp3', 'TV', 'TV')
 		If $aLoadTV[$i][1] > 0 Then
 			GUISetState(@SW_HIDE, $WoTchild)
 		Else
@@ -3479,28 +3696,29 @@ Func _CreateTVLoad()
 EndFunc   ;==>_CreateTVLoad
 Func _LOADPJT()
 	Local $agta, $win
-	Local $medit, $aGetObj, $gtprc, $rdw, $rdc, $gf, $trimEx
+	Local $medit, $aGetObj, $gtprc, $rdw, $rdc, $gf
 	Local $setmedit, $asetmap[2]
-	Local $aPage = _FileListToArray($wkdir, '*.jmp3', 1)
+	Local $aPage = _FFSearch($wkdir, 'jmp3', 3, 1, 2)
 	If @error Then
 		_StopSound()
 		MsgBox(16, @error, $Instjmplang[23])
 		Run('cmd.exe /C rmdir /S /Q "' & @TempDir & '\wkdirjmp3' & '"', '', @SW_HIDE)
 		Exit
 	EndIf
-	For $i = 1 To $aPage[0]
-		$trimEx = StringTrimRight($aPage[$i], 5)
-		_PageCreate($oSNW, $trimEx)
-		$aGetObj = _mGetValueKey($oSNW, $trimEx)
+	For $i = 0 To UBound($aPage) - 1
+		_PageCreate($oSNW, 'page' & $i)
+		$aGetObj = $oSNW.Item('page' & $i)
 		$objw = $aGetObj[0]
 		$objc = $aGetObj[1]
-		$rdw = IniReadSection($wkdir & '\' & $aPage[$i], 'Windows')
+		$rdw = IniReadSection($wkdir & '\page' & $i & '.jmp3', 'Windows')
 		If Not @error Then
-			$agta = StringSplit($rdw[1][1], '<>', 3)
-			For $cw = 0 To 4
-				$agta[$cw] = Number($agta[$cw])
+			For $r = 1 To $rdw[0][0]
+				$agta = StringSplit($rdw[$r][1], '<>', 3)
+				For $cw = 0 To 4
+					$agta[$cw] = Number($agta[$cw])
+				Next
+				$objw.Add(Number($rdw[$r][0]), $agta)
 			Next
-			_mCreateKey($objw, 0, $agta)
 		Else
 			GUIDelete($WOTP)
 			_StopSound()
@@ -3508,13 +3726,13 @@ Func _LOADPJT()
 			Run('cmd.exe /C rmdir /S /Q "' & @TempDir & '\wkdirjmp3' & '"', '', @SW_HIDE)
 			Exit
 		EndIf
-		If $i = 1 Then
-			$win = _mGetValueKey($objw, 0)
+		If $i = 0 Then
+			$win = $objw.Item(0)
 			$WOTP = GUICreate('', $win[2], $win[3], -1, -1, $WS_POPUP, $WS_EX_LAYERED)
 			GUISetBkColor($win[4], $WOTP)
 			_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
 		EndIf
-		$rdc = IniReadSection($wkdir & '\' & $aPage[$i], 'Controls')
+		$rdc = IniReadSection($wkdir & '\page' & $i & '.jmp3', 'Controls')
 		If Not @error Then
 			For $c = 1 To $rdc[0][0]
 				$agta = StringSplit($rdc[$c][1], '<>', 3)
@@ -3562,8 +3780,8 @@ Func _LOADPJT()
 					Case 'treeview'
 						_ArrayAdd($aLoadTV, '')
 						$aLoadTV[UBound($aLoadTV) - 1][0] = $agta
-						$aLoadTV[UBound($aLoadTV) - 1][1] = $i - 1
-						$nExistsTV = $i - 1
+						$aLoadTV[UBound($aLoadTV) - 1][1] = $i
+						$nExistsTV = $i
 					Case 'label'
 						$medit = StringReplace($agta[1], '\n', @CRLF)
 						$medit = StringReplace($medit, '\h', ' ')
@@ -3575,9 +3793,9 @@ Func _LOADPJT()
 						EndIf
 						$funcid = GUICtrlCreateLabel($setmedit, $agta[2], $agta[3], $agta[4], $agta[5], $agta[6], $agta[7])
 						DllCall('UxTheme.dll', 'uint', 'SetWindowTheme', 'hwnd', GUICtrlGetHandle($funcid), 'wstr', '', 'wstr', '')
-						If $agta[14] == 'txt' Then _mCreateKey($oMod, 'txt' & $i - 1, $funcid)
-						If $agta[14] == 'info' Then _mCreateKey($oMod, 'info' & $i - 1, $funcid)
-						If $agta[14] == 'path' Then _mCreateKey($oMod, 'path', $funcid)
+						If $agta[14] == 'txt' Then $oMod.Add('txt' & $i, $funcid)
+						If $agta[14] == 'info' Then $oMod.Add('info' & $i, $funcid)
+						If $agta[14] == 'path' Then $oMod.Add('path', $funcid)
 						$gf = StringSplit($agta[8], '!')
 						If $gf[0] > 1 Then GUICtrlSetFont($funcid, $gf[1], $gf[2], $gf[3], $gf[4])
 						GUICtrlSetColor($funcid, $agta[10])
@@ -3585,8 +3803,8 @@ Func _LOADPJT()
 					Case 'mod'
 						$agta[15] = Number($agta[15])
 						If $agta[15] Then
-							Local $gettp = _mGetValueKey($oMod, $agta[15])
-							$gettp = _mGetValueKey($objc, $gettp)
+							Local $gettp = $oMod.Item($agta[15])
+							$gettp = $objc.Item($gettp)
 							If $gettp[17] Then
 								$funcid = GUICtrlCreateRadio($agta[1], $agta[2], $agta[3], $agta[4], $agta[5], $agta[6], $agta[7])
 								If StringRight($gettp[16], StringLen($agta[14])) = $agta[14] Then GUIStartGroup()
@@ -3600,7 +3818,7 @@ Func _LOADPJT()
 							If $agta[17] Then GUIStartGroup()
 						EndIf
 						DllCall('UxTheme.dll', 'uint', 'SetWindowTheme', 'hwnd', GUICtrlGetHandle($funcid), 'wstr', '', 'wstr', '')
-						_mCreateKey($oMod, Number($agta[14]), $funcid)
+						$oMod.Add(Number($agta[14]), $funcid)
 						GUICtrlSetState($funcid, $agta[23])
 						GUICtrlSetState($funcid, $agta[25])
 						$medit = StringReplace($agta[1], '\n', @CRLF)
@@ -3662,12 +3880,12 @@ Func _LOADPJT()
 						$TextBGColor = $agta[7]
 						$sFontProgress = $agta[8]
 						$iVisPerc = $agta[6]
-						_mCreateKey($oMod, 'perc', $funcid)
+						$oMod.Add('perc', $funcid)
 						$iPercId = $funcid
 					Case 'pic'
 						If $agta[14] == 'pic' Then
 							$funcid = GUICtrlCreatePic('', $agta[2], $agta[3], $agta[4], $agta[5], $agta[6], $agta[7])
-							_mCreateKey($oMod, 'pic' & $i - 1, $funcid)
+							$oMod.Add('pic' & $i, $funcid)
 						Else
 							Local $imsetp = $wkdir & '\' & $agta[12]
 							If FileExists($wkdir & '\' & $agta[12]) Then
@@ -3685,18 +3903,18 @@ Func _LOADPJT()
 				GUICtrlSetResizing($funcid, $agta[13])
 				Switch String($agta[14])
 					Case 'backauset', 'ausetmod'
-						If _mExistsKey($oMod, $agta[14]) Then
-							$gtprc = _mGetValueKey($oMod, $agta[14])
+						If $oMod.Exists($agta[14]) Then
+							$gtprc = $oMod.Item($agta[14])
 							_ArrayAdd($gtprc, $funcid)
-							_mSetValueKey($oMod, $agta[14], $gtprc)
+							$oMod.Item($agta[14]) = $gtprc
 						Else
 							Local $aperc[1] = [$funcid]
-							_mCreateKey($oMod, $agta[14], $aperc)
+							$oMod.Add($agta[14], $aperc)
 						EndIf
 				EndSwitch
 				If $agta[9] Then GUICtrlSetState($funcid, $agta[9])
-				If $i > 1 Then GUICtrlSetState($funcid, $GUI_HIDE)
-				_mCreateKey($objc, $funcid, $agta)
+				If $i > 0 Then GUICtrlSetState($funcid, $GUI_HIDE)
+				$objc.Add($funcid, $agta)
 			Next
 		Else
 			GUIDelete($WOTP)
@@ -3705,18 +3923,14 @@ Func _LOADPJT()
 			Run('cmd.exe /C rmdir /S /Q "' & @TempDir & '\wkdirjmp3' & '"', '', @SW_HIDE)
 			Exit
 		EndIf
-		$asetmap[0] = $objw
-		$asetmap[1] = $objc
-		_mSetValueKey($oSNW, $trimEx, $asetmap)
 		_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
 	Next
 	_WinAPI_RedrawWindow($WOTP)
 	_WinAPI_UpdateWindow($WOTP)
 	_Middle($WOTP, $win[2], $win[3])
 	$CurGui = 0
-	$aGetObj = _mGetValueKey($oSNW, 'page' & $CurGui)
-	$objw = $aGetObj[0]
-	$objc = $aGetObj[1]
+	$objw = $oSNW.Item('page' & $CurGui)[0]
+	$objc = $oSNW.Item('page' & $CurGui)[1]
 EndFunc   ;==>_LOADPJT
 Func _Middle($win, $wd, $ht)
 	Local $y = (@DesktopHeight / 2) - ($ht / 2)
@@ -3724,8 +3938,9 @@ Func _Middle($win, $wd, $ht)
 	WinMove($win, '', $x, $y, $wd, $ht)
 EndFunc   ;==>_Middle
 Func _PAGEBN($FL = 0)
+	Local $nPageC = $CurGui
 	If $curidpos Then
-		Local $setoldid = _mGetValueKey($objc, $curidpos)
+		Local $setoldid = $objc.Item($curidpos)
 		If $backlight = 2 Then
 			Local $gp1 = ControlGetPos($WOTP, '', $curidpos)
 			Switch String($setoldid[0])
@@ -3752,10 +3967,10 @@ Func _PAGEBN($FL = 0)
 	EndIf
 	Local $ctrlstate
 	If $FL < 2 Then
-		$aKeys = _mGetKeys($objc)
+		$aKeys = $objc.Keys()
 		For $i In $aKeys
 			$flpg = 0
-			$ctrlstate = _mGetValueKey($objc, $i)
+			$ctrlstate = $objc.Item($i)
 			If UBound($ctrlstate) = 26 Then
 				If $ctrlstate[0] == 'treeview' Then
 					$flpgtv = 0
@@ -3766,17 +3981,16 @@ Func _PAGEBN($FL = 0)
 			EndIf
 		Next
 	EndIf
-	Local $aGetObj = _mGetValueKey($oSNW, 'page' & $CurGui)
-	$objw = $aGetObj[0]
-	$objc = $aGetObj[1]
-	Local $win = _mGetValueKey($objw, 0)
+	$objw = $oSNW.Item('page' & $CurGui)[0]
+	$objc = $oSNW.Item('page' & $CurGui)[1]
+	Local $win = $objw.Item(0)
 	GUISetBkColor($win[4], $WOTP)
 	Local $wpos = WinGetPos($WOTP)
 	WinMove($WOTP, '', $wpos[0], $wpos[1], $win[2], $win[3])
-	$aKeys = _mGetKeys($objc)
+	$aKeys = $objc.Keys()
 	For $i In $aKeys
 		$flpg = 1
-		$ctrlstate = _mGetValueKey($objc, $i)
+		$ctrlstate = $objc.Item($i)
 		If UBound($ctrlstate) = 26 Then
 			If $ctrlstate[0] == 'treeview' Then
 				_GUITreeViewEx_InitTV($i)
@@ -3787,13 +4001,14 @@ Func _PAGEBN($FL = 0)
 			GUICtrlSetState($i, Number($ctrlstate[25]))
 		EndIf
 	Next
+	;~ 	_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
 EndFunc   ;==>_PAGEBN
 Func _PAGECH($cpg)
 	Local $setoldid
-	If _mExistsKey($oSNW, 'page' & $cpg) Then
+	If $oSNW.Exists('page' & $cpg) Then
 		If $CurGui <> $cpg Then
 			If $curidpos Then
-				$setoldid = _mGetValueKey($objc, $curidpos)
+				$setoldid = $objc.Item($curidpos)
 				If UBound($setoldid) = 26 Then
 					If $backlight = 2 Then
 						Local $gp1 = ControlGetPos($WOTP, '', $curidpos)
@@ -3813,10 +4028,10 @@ Func _PAGECH($cpg)
 				$curidpos = 0
 			EndIf
 			Local $aKeys, $ctrlstate
-			$aKeys = _mGetKeys($objc)
+			$aKeys = $objc.Keys()
 			For $i In $aKeys
 				$flpg = 0
-				$ctrlstate = _mGetValueKey($objc, $i)
+				$ctrlstate = $objc.Item($i)
 				If UBound($ctrlstate) = 26 Then
 					If $ctrlstate[0] == 'treeview' Then
 						$flpgtv = 0
@@ -3826,17 +4041,16 @@ Func _PAGECH($cpg)
 					GUICtrlSetState($i, $GUI_HIDE)
 				EndIf
 			Next
-			Local $aGetObj = _mGetValueKey($oSNW, 'page' & $cpg)
-			$objw = $aGetObj[0]
-			$objc = $aGetObj[1]
-			Local $win = _mGetValueKey($objw, 0)
+			$objw = $oSNW.Item('page' & $cpg)[0]
+			$objc = $oSNW.Item('page' & $cpg)[1]
+			Local $win = $objw.Item(0)
 			GUISetBkColor($win[4], $WOTP)
 			Local $wpos = WinGetPos($WOTP)
 			WinMove($WOTP, '', $wpos[0], $wpos[1], $win[2], $win[3])
-			$aKeys = _mGetKeys($objc)
+			$aKeys = $objc.Keys()
 			For $i In $aKeys
 				$flpg = 1
-				$ctrlstate = _mGetValueKey($objc, $i)
+				$ctrlstate = $objc.Item($i)
 				If UBound($ctrlstate) = 26 Then
 					If $ctrlstate[0] == 'treeview' Then
 						_GUITreeViewEx_InitTV($i)
@@ -3848,6 +4062,7 @@ Func _PAGECH($cpg)
 				EndIf
 			Next
 			$CurGui = $cpg
+			;~ 			_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
 		EndIf
 	EndIf
 EndFunc   ;==>_PAGECH
@@ -3872,7 +4087,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 					EndIf
 				Case Else
 					If $nID > 0 Then
-						$getparam = _mGetValueKey($objc, $nID)
+						$getparam = $objc.Item($nID)
 						If UBound($getparam) = 26 Then
 							$UpIdC = $nID
 							Switch String($getparam[14])
@@ -3891,7 +4106,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 				Case $WOTP
 				Case Else
 					If $nID > 0 Then
-						$getparam = _mGetValueKey($objc, $nID)
+						$getparam = $objc.Item($nID)
 						If UBound($getparam) = 26 Then
 							If $wParam = $g_GTVEx_aTVData Or $getparam[1] = 'bck0' Then $nflagsetimgtv = 1
 							Switch String($getparam[0])
@@ -3912,7 +4127,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 												$flfunc = 'close'
 											Case 'next'
 												If Not $flinstset Then
-													If _mExistsKey($oSNW, 'page' & $CurGui + 1) Then _PAGEBN(1)
+													If $oSNW.Exists('page' & $CurGui + 1) Then _PAGEBN(1)
 												EndIf
 											Case 'back'
 												If Not $flinstset Then
@@ -3939,7 +4154,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 					Case $WOTP
 						If $backlight = 2 Then
 							If $curidpos Then
-								$setoldid = _mGetValueKey($objc, $curidpos)
+								$setoldid = $objc.Item($curidpos)
 								If UBound($setoldid) = 26 Then
 									Local $gp1 = ControlGetPos($WOTP, '', $curidpos)
 									Switch String($setoldid[0])
@@ -3954,7 +4169,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 						EndIf
 						If $backlight = 3 Then
 							If $curidpos Then
-								$setoldid = _mGetValueKey($objc, $curidpos)
+								$setoldid = $objc.Item($curidpos)
 								If UBound($setoldid) = 26 Then
 									Switch String($setoldid[0])
 										Case 'label', 'checkbox'
@@ -3967,7 +4182,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 						If $g_hCursor Then Return _WinAPI_SetCursor($g_hCursor)
 					Case Else
 						If $nID > 0 Then
-							$getparam = _mGetValueKey($objc, $nID)
+							$getparam = $objc.Item($nID)
 							If UBound($getparam) = 26 Then
 								Switch String($getparam[14])
 									Case 'cash', 'clmods', 'clresmods', 'backup', 'clmrm', 'stop', 'next', 'inst', 'back', 'chpath', 'close', 'chpage', 'mini', 'url', 'backauset', 'ausetmod'
@@ -3982,7 +4197,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 														GUICtrlSetFont($nID, $setnewid[1] + 2, $setnewid[2], $setnewid[3], $setnewid[4])
 												EndSwitch
 												If $curidpos Then
-													$setoldid = _mGetValueKey($objc, $curidpos)
+													$setoldid = $objc.Item($curidpos)
 													If IsArray($setoldid) Then
 														Switch String($setoldid[0])
 															Case 'label', 'checkbox'
@@ -4002,7 +4217,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 														GUICtrlSetBkColor($nID, $backlightcolor)
 												EndSwitch
 												If $curidpos Then
-													$setoldid = _mGetValueKey($objc, $curidpos)
+													$setoldid = $objc.Item($curidpos)
 													If UBound($setoldid) = 26 Then
 														Switch String($setoldid[0])
 															Case 'label', 'checkbox'
@@ -4019,7 +4234,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 									Case Else
 										If $backlight = 2 Then
 											If $curidpos Then
-												$setoldid = _mGetValueKey($objc, $curidpos)
+												$setoldid = $objc.Item($curidpos)
 												If UBound($setoldid) = 26 Then
 													Local $gp1 = ControlGetPos($WOTP, '', $curidpos)
 													Switch String($setoldid[0])
@@ -4034,7 +4249,7 @@ Func WM_SETCURSOR($hWnd, $Msg, $wParam, $lParam)
 										EndIf
 										If $backlight = 3 Then
 											If $curidpos Then
-												$setoldid = _mGetValueKey($objc, $curidpos)
+												$setoldid = $objc.Item($curidpos)
 												If UBound($setoldid) = 26 Then
 													Switch String($setoldid[0])
 														Case 'label', 'checkbox'
@@ -4063,7 +4278,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 	$FSID = _WinAPI_LoWord($iwParam)
 	Switch $FSID
 		Case $FSID > 0
-			$getparam = _mGetValueKey($objc, $FSID)
+			$getparam = $objc.Item($FSID)
 			If IsArray($getparam) Then
 				Switch String($getparam[0])
 					Case 'mod'
@@ -4114,8 +4329,8 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 											_BASS_ChannelPlay($MusicHandleBck, 0)
 									EndSwitch
 									$nbackauset = $RFsid
-									If _mExistsKey($oMod, 'backauset') Then
-										$gtprc = _mGetValueKey($oMod, 'backauset')
+									If $oMod.Exists('backauset') Then
+										$gtprc = $oMod.Item('backauset')
 										For $i = 0 To UBound($gtprc) - 1
 											GUICtrlSetState($gtprc[$i], $nbackauset)
 										Next
@@ -4124,8 +4339,8 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 							Case 'ausetmod'
 								If $nDiffplayCtrl = 1 Then
 									$nausetmod = $RFsid
-									If _mExistsKey($oMod, 'ausetmod') Then
-										$gtprc = _mGetValueKey($oMod, 'ausetmod')
+									If $oMod.Exists('ausetmod') Then
+										$gtprc = $oMod.Item('ausetmod')
 										For $i = 0 To UBound($gtprc) - 1
 											GUICtrlSetState($gtprc[$i], $nausetmod)
 										Next
@@ -4133,7 +4348,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 								EndIf
 						EndSwitch
 						$getparam[15] = $RFsid
-						_mSetValueKey($objc, $FSID, $getparam)
+						$objc.Item($FSID) = $getparam
 					Case 'pic'
 						If $nDiffplayCtrl = 0 Then
 							Switch String($getparam[14])
@@ -4141,9 +4356,9 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 									If $nbackauset = 1 Then
 										$nbackauset = 4
 										_BASS_ChannelPlay($MusicHandleBck, 0)
-;~ 									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
-										If _mExistsKey($oMod, 'backauset') Then
-											$gtprc = _mGetValueKey($oMod, 'backauset')
+										;~ 									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
+										If $oMod.Exists('backauset') Then
+											$gtprc = $oMod.Item('backauset')
 											For $i = 0 To UBound($gtprc) - 1
 												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
 												_SetImage($gtprc[$i], $picauback, $getposauctrl[2], $getposauctrl[3], -1)
@@ -4152,9 +4367,9 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 									Else
 										$nbackauset = 1
 										_BASS_ChannelPause($MusicHandleBck)
-;~ 									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
-										If _mExistsKey($oMod, 'backauset') Then
-											$gtprc = _mGetValueKey($oMod, 'backauset')
+										;~ 									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
+										If $oMod.Exists('backauset') Then
+											$gtprc = $oMod.Item('backauset')
 											For $i = 0 To UBound($gtprc) - 1
 												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
 												_SetImage($gtprc[$i], $picaubackST, $getposauctrl[2], $getposauctrl[3], -1)
@@ -4164,9 +4379,9 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 								Case 'ausetmod'
 									If $nausetmod = 1 Then
 										$nausetmod = 4
-;~ 									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
-										If _mExistsKey($oMod, 'ausetmod') Then
-											$gtprc = _mGetValueKey($oMod, 'ausetmod')
+										;~ 									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
+										If $oMod.Exists('ausetmod') Then
+											$gtprc = $oMod.Item('ausetmod')
 											For $i = 0 To UBound($gtprc) - 1
 												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
 												_SetImage($gtprc[$i], $picaumod, $getposauctrl[2], $getposauctrl[3], -1)
@@ -4174,9 +4389,9 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 										EndIf
 									Else
 										$nausetmod = 1
-;~ 									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
-										If _mExistsKey($oMod, 'ausetmod') Then
-											$gtprc = _mGetValueKey($oMod, 'ausetmod')
+										;~ 									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
+										If $oMod.Exists('ausetmod') Then
+											$gtprc = $oMod.Item('ausetmod')
 											For $i = 0 To UBound($gtprc) - 1
 												$getposauctrl = ControlGetPos($WOTP, '', $gtprc[$i])
 												_SetImage($gtprc[$i], $picaumodST, $getposauctrl[2], $getposauctrl[3], -1)
@@ -4192,14 +4407,14 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 EndFunc   ;==>WM_COMMAND
 ;~ $picauback = $wkdir & '\picauback.png', $picaubackST = $wkdir & '\picaubackST.png', $picaumod = $wkdir & '\picaumod.png', $picaumodST = $wkdir & '\picaumodST.png'
 Func _CHKPARENT($idchk)
-	Local $ainfid = _mGetValueKey($objc, $idchk)
+	Local $ainfid = $objc.Item($idchk)
 	If GUICtrlRead($idchk) = 4 Then
 		$ainfid[23] = 4
-		_mSetValueKey($objc, $idchk, $ainfid)
+		$objc.Item($idchk) = $ainfid
 		If Not (String($ainfid[16]) == '0') Then _CHKDNDEL($ainfid[16])
 	Else
 		$ainfid[23] = 1
-		_mSetValueKey($objc, $idchk, $ainfid)
+		$objc.Item($idchk) = $ainfid
 		If $ainfid[15] Then
 			_CHKUP($ainfid[15])
 			_ONLY($ainfid[15], $ainfid[14])
@@ -4207,9 +4422,10 @@ Func _CHKPARENT($idchk)
 		If Not (String($ainfid[16]) == '0') Then _CHKDN($ainfid[16])
 	EndIf
 EndFunc   ;==>_CHKPARENT
+
 Func _ONLY($nmp, $nmit)
-	Local $gtfol = _mGetValueKey($oMod, $nmp)
-	Local $only = _mGetValueKey($objc, $gtfol)
+	Local $gtfol = $oMod.Item($nmp)
+	Local $only = $objc.Item($gtfol)
 	If $only[17] Then
 		Local $recount = StringReplace($only[16], '#' & $nmit, '')
 		If Not @extended Then
@@ -4229,49 +4445,53 @@ Func _ONLY($nmp, $nmit)
 		EndIf
 	EndIf
 EndFunc   ;==>_ONLY
+
 Func _CHKUP($idprt)
 	Local $getchk, $getid = $idprt, $gtfol
 	While 1
-		$gtfol = _mGetValueKey($oMod, $getid)
-		$getchk = _mGetValueKey($objc, $gtfol)
+		$gtfol = $oMod.Item($getid)
+		$getchk = $objc.Item($gtfol)
 		If GUICtrlRead($getchk) = 1 Then
 			ExitLoop
 		Else
 			GUICtrlSetState($gtfol, 1)
 			$getchk[23] = 1
-			_mSetValueKey($objc, $gtfol, $getchk)
+			$objc.Item($gtfol) = $getchk
 			If Not Number($getchk[15]) Then ExitLoop
 			$getid = Number($getchk[15])
 		EndIf
 	WEnd
 EndFunc   ;==>_CHKUP
+
 Func _CHKDN($idprt)
 	Local $getchk, $getid = $idprt, $splfid, $gettmpid
 	While 1
 		$splfid = StringSplit($getid, '#')
-		$gettmpid = _mGetValueKey($oMod, Number($splfid[1]))
-		$getchk = _mGetValueKey($objc, $gettmpid)
+		$gettmpid = $oMod.Item(Number($splfid[1]))
+		$getchk = $objc.Item($gettmpid)
 		GUICtrlSetState($gettmpid, 1)
 		$getchk[23] = 1
-		_mSetValueKey($objc, $gettmpid, $getchk)
+		$objc.Item($gettmpid) = $getchk
 		If String($getchk[16]) == '0' Then ExitLoop
 		$getid = $getchk[16]
 	WEnd
 EndFunc   ;==>_CHKDN
+
 Func _CHKDNDEL($idprt)
 	Local $getchk
 	Local $splfid, $gettmpid
 	$splfid = StringSplit($idprt, '#')
 	For $i = 1 To $splfid[0]
-		$gettmpid = _mGetValueKey($oMod, Number($splfid[$i]))
-		$getchk = _mGetValueKey($objc, $gettmpid)
+		$gettmpid = $oMod.Item(Number($splfid[$i]))
+		$getchk = $objc.Item($gettmpid)
 		GUICtrlSetState($gettmpid, 4)
 		$getchk[23] = 4
-		_mSetValueKey($objc, $gettmpid, $getchk)
+		$objc.Item($gettmpid) = $getchk
 		If String($getchk[16]) == '0' Then ContinueLoop
 		_CHKDNDEL($getchk[16])
 	Next
 EndFunc   ;==>_CHKDNDEL
+
 Func _PICTXTTV()
 	Local $gtpic, $curpic
 	Local $tPoint = _WinAPI_GetMousePos(1, $g_GTVEx_aTVData)
@@ -4287,9 +4507,9 @@ Func _PICTXTTV()
 					Return
 				EndIf
 				If FileExists($wkdir & '\' & $gtpic[14] & StringRight($gtpic[19], 4)) Then
-					$idpic = _mGetValueKey($oMod, 'pic' & $CurGui)
+					$idpic = $oMod.Item('pic' & $CurGui)
 					If $idpic Then
-						Local $gppic = _mGetValueKey($objc, $idpic)
+						Local $gppic = $objc.Item($idpic)
 						$curpic = $wkdir & '\' & $gtpic[14] & StringRight($gtpic[19], 4)
 						_SetImage($idpic, $curpic, $gppic[4], $gppic[5], -1)
 						GUICtrlSetPos($idpic, $gppic[2], $gppic[3], $gppic[4], $gppic[5])
@@ -4308,16 +4528,11 @@ Func _PICTXTTV()
 					_ResetStopS()
 				EndIf
 				If Not (String($gtpic[22]) == '0') Then
-					$idtxt = _mGetValueKey($oMod, 'txt' & $CurGui)
+					$idtxt = $oMod.Item('txt' & $CurGui)
 					If $idtxt Then
 						Local $medit = StringReplace($gtpic[22], '\n', @CRLF)
 						$medit = StringReplace($medit, '\h', ' ')
-						$medit = StringSplit($medit, '{lang}', 1)
-						If $medit[0] >= $iCHLangPJ Then
-							GUICtrlSetData($idtxt, $medit[$iCHLangPJ])
-						Else
-							GUICtrlSetData($idtxt, $medit[1])
-						EndIf
+						GUICtrlSetData($idtxt, $medit)
 					EndIf
 				Else
 					If $idtxt Then
@@ -4335,10 +4550,11 @@ Func _PICTXTTV()
 		Return
 	EndIf
 EndFunc   ;==>_PICTXTTV
+
 Func _PICTXT($getcurid)
 	Local $curpic
 	If $getcurid > 0 Then
-		Local $gtpic = _mGetValueKey($objc, $getcurid)
+		Local $gtpic = $objc.Item($getcurid)
 		If Not IsArray($gtpic) Then
 			If $flhide Then
 				_UpDateVTV()
@@ -4349,9 +4565,9 @@ Func _PICTXT($getcurid)
 		If String($gtpic[0]) == 'mod' Then
 			If $tmpcurtv = $getcurid Then Return
 			If FileExists($wkdir & '\' & $gtpic[14] & StringRight($gtpic[19], 4)) Then
-				$idpic = _mGetValueKey($oMod, 'pic' & $CurGui)
+				$idpic = $oMod.Item('pic' & $CurGui)
 				If $idpic Then
-					Local $gppic = _mGetValueKey($objc, $idpic)
+					Local $gppic = $objc.Item($idpic)
 					$curpic = $wkdir & '\' & $gtpic[14] & StringRight($gtpic[19], 4)
 					_SetImage($idpic, $curpic, $gppic[4], $gppic[5], -1)
 					GUICtrlSetPos($idpic, $gppic[2], $gppic[3], $gppic[4], $gppic[5])
@@ -4374,7 +4590,7 @@ Func _PICTXT($getcurid)
 				_ResetStopS()
 			EndIf
 			If Not (String($gtpic[22]) == '0') Then
-				$idtxt = _mGetValueKey($oMod, 'txt' & $CurGui)
+				$idtxt = $oMod.Item('txt' & $CurGui)
 				If $idtxt Then
 					Local $medit = StringReplace($gtpic[22], '\n', @CRLF)
 					$medit = StringReplace($medit, '\h', ' ')
@@ -4508,23 +4724,139 @@ Func _ExtractFiles($aNameExt, $sPathExt, $aArrayFiles, $sPathExe)
 	Next
 	FileClose($hFileCreateST)
 EndFunc   ;==>_ExtractFiles
-;~ Func _ExtractFiles($aNameExt, $sPathExt, $aArrayFiles, $sPathExe)
-;~ 	Local $hFileCreateST = FileOpen($sPathExe, 16)
-;~ 	If $hFileCreateST = -1 Then Return SetError - 25
-;~ 	Local $i, $r, $bReadFile, $hOfileRes, $nAllSizeFiles = 0
-;~ 	For $r = 0 To UBound($aNameExt) - 1
-;~ 		For $i = UBound($aArrayFiles) - 1 To 0 Step -1
-;~ 			$nAllSizeFiles += $aArrayFiles[$i][1]
-;~ 			If $aArrayFiles[$i][0] = $aNameExt[$r] Then
-;~ 				FileSetPos($hFileCreateST, -$nAllSizeFiles, 2)
-;~ 				$bReadFile = FileRead($hFileCreateST, $aArrayFiles[$i][1])
-;~ 				$hOfileRes = FileOpen($sPathExt & '\' & $aArrayFiles[$i][0], 26)
-;~ 				FileWrite($hOfileRes, $bReadFile)
-;~ 				FileClose($hOfileRes)
-;~ 				ExitLoop
-;~ 			EndIf
-;~ 		Next
-;~ 		$nAllSizeFiles = 0
-;~ 	Next
-;~ 	FileClose($hFileCreateST)
-;~ EndFunc   ;==>_ExtractFiles
+
+
+#include-once
+
+; Имя.....................: _FFSearch
+; Назначение..............: Поиск файлов и папок
+; Синтаксис...............: _FileSearch($sPath, [$sExt = '',[ $iPart = 0, [$iDepth = 0,[ $aArray = 1]]]])
+; Параметры...............: $sPath - Путь поиска(строка)
+;                           $sExt - Имя и расширение, или имя(часть имени), или расширение(строка).Можно использовать несколько данных для поиска. Использовать разделитель '|'. Расширения пишутся без точки: exe|txt|jpg
+;                           $iPart - Параметры поиска(число)
+;                                |0 - Поиск файлов и папок.Если $sExt пуст, то будут возвращены все файлы и папки. Если $sExt равен строке, то будут возвращены все файлы и папки, имена которых частично или полностью совпадают со строкой $sExt
+;                                |1 - Поиск файлов по имени и расширению |
+;                                |2 - Поиск файлов по имени              |Если $sExt пуст, то будут возвращены все файлы
+;                                |3 - Поиск файлов по расширению         |
+;                                |4 - Поиск папок по имени. Полное совпадение имени. Если $sExt пуст, то будут возвращены все папки
+;                                |5 - Поиск пустых папок(внутри нет ни папок ни файлов)
+;                                |6 - Поиск файлов нулевого размера
+;                                |7 - Поиск пустых папок(внутри есть папки, но они пустые)
+;                                |11(5+6) - Поиск пустых папок и файлов нулевого размера
+;                          $iDepth - Глубина поиска(число)
+;                                |0 - Поиск во всех папках
+;                                |1 - Поиск на первом уровне
+;                          $aArray - Вид массива(число)
+;                                |1 - Первый элемент массива содержит количество элементов массива
+;                                |2 - Отключить возвращение количества элементов в первый элемент массива (необходимо использовать UBound(), чтобы получить размер массива)
+; Возвращаемые значения...: Успех - Массив найденных файлов и/или папок
+; Ошибки..................: Ошибки 1, 3, 4, 5 - указывают на ошибку в параметрах функции. Номер ошибки соответствует порядковому номеру параметра функции
+;                           6 - Папка пуста(путь не существует)
+;                           7 - Ничего не найдено
+; Автор...................: Joiner
+Func _FFSearch($sPath, $sExt = '', $iPart = 0, $iDepth = 0, $aArray = 1)
+	$sPath = StringStripWS($sPath, 3)
+	$iPart = Number($iPart)
+	$iDepth = Number($iDepth)
+	$aArray = Number($aArray)
+	Select
+		Case $sPath = ''
+			Return SetError(1)
+		Case ($iPart < 0 Or $iPart > 7) And $iPart <> 11
+			Return SetError(3)
+		Case $iDepth < 0 Or $iDepth > 1
+			Return SetError(4)
+		Case $aArray < 1 Or $aArray > 2
+			Return SetError(5)
+	EndSelect
+	If StringCompare(StringRight($sPath, 1), '\') Then $sPath = $sPath & '\'
+	Local $sFileList
+	If StringInStr($sExt, '|') Then
+		Local $sDelim = StringSplit($sExt, '|', 1)
+		For $i = 1 To $sDelim[0]
+			__FFSearchAll($sFileList, $sPath, $sDelim[$i], $iPart, $iDepth)
+			If @error Then Return SetError(6)
+		Next
+	Else
+		__FFSearchAll($sFileList, $sPath, $sExt, $iPart, $iDepth)
+		If @error Then Return SetError(6)
+	EndIf
+	$sFileList = StringTrimRight($sFileList, 1)
+	If Not $sFileList Then Return SetError(7)
+	$sFileList = StringSplit($sFileList, '|', $aArray)
+	Return $sFileList
+EndFunc   ;==>_FFSearch
+
+Func __FFSearchAll(ByRef $sFileList, $sPath, $sExt = '', $iPart = 0, $iDepth = 0)
+	Local $sFile = '', $hFirstFile = FileFindFirstFile($sPath & '*'), $lastpoint, $RetString = ''
+	If $hFirstFile = -1 Then Return SetError(1)
+	Local $aEmptyF
+	While 1
+		$sFile = FileFindNextFile($hFirstFile)
+		If @error Then ExitLoop
+		If @extended Then
+			If $sExt Then
+				Switch $iPart
+					Case 0
+						If StringInStr($sFile, $sExt) Then $sFileList &= $sPath & $sFile & '|'
+					Case 4
+						If Not StringCompare($sFile, $sExt) Then $sFileList &= $sPath & $sFile & '|'
+					Case 5, 11
+						$aEmptyF = DirGetSize($sPath & $sFile, 1)
+						If Not @error Then
+							If Not $aEmptyF[1] And Not $aEmptyF[2] Then $sFileList &= $sPath & $sFile & '|'
+						EndIf
+					Case 7
+						$aEmptyF = DirGetSize($sPath & $sFile, 1)
+						If Not @error Then
+							If Number($aEmptyF[1]) = 0 Then $sFileList &= $sPath & $sFile & '|'
+						EndIf
+				EndSwitch
+			Else
+				Switch $iPart
+					Case 0, 4
+						$sFileList &= $sPath & $sFile & '|'
+					Case 5, 11
+						$aEmptyF = DirGetSize($sPath & $sFile, 1)
+						If Not @error Then
+							If Number($aEmptyF[1]) = 0 And Number($aEmptyF[2]) = 0 Then $sFileList &= $sPath & $sFile & '|'
+						EndIf
+					Case 7
+						$aEmptyF = DirGetSize($sPath & $sFile, 1)
+						If Not @error Then
+							If Number($aEmptyF[1]) = 0 Then $sFileList &= $sPath & $sFile & '|'
+						EndIf
+				EndSwitch
+			EndIf
+			If Not $iDepth Then __FFSearchAll($sFileList, $sPath & $sFile & '\', $sExt, $iPart, $iDepth)
+		Else
+			If $sExt Then
+				$lastpoint = StringInStr($sFile, '.', 0, -1)
+				Switch $iPart
+					Case 0
+						$RetString = StringLeft($sFile, $lastpoint - 1)
+						If StringInStr($RetString, $sExt) Then $sFileList &= $sPath & $sFile & '|'
+					Case 1
+						If Not StringCompare($sFile, $sExt) Then $sFileList &= $sPath & $sFile & '|'
+					Case 2
+						$RetString = StringLeft($sFile, $lastpoint - 1)
+						If Not StringCompare($RetString, $sExt) Then $sFileList &= $sPath & $sFile & '|'
+					Case 3
+						$RetString = StringTrimLeft($sFile, $lastpoint)
+						If Not StringCompare($RetString, $sExt) Then $sFileList &= $sPath & $sFile & '|'
+					Case 6, 11
+						If Not FileGetSize($sPath & $sFile) Then $sFileList &= $sPath & $sFile & '|'
+				EndSwitch
+			Else
+				Switch $iPart
+					Case 0 To 3
+						$sFileList &= $sPath & $sFile & '|'
+					Case 6, 11
+						If Not FileGetSize($sPath & $sFile) Then $sFileList &= $sPath & $sFile & '|'
+				EndSwitch
+			EndIf
+		EndIf
+	WEnd
+	FileClose($hFirstFile)
+EndFunc   ;==>__FFSearchAll
+
