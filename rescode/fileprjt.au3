@@ -1907,8 +1907,9 @@ EndFunc   ;==>_GUITreeViewEx_SaveTV
 ;~ $sSection - Имя секции
 ;~ $sKey - Имя параметра
 
-Func _GUITreeViewEx_LoadTV($hTVX, $sTvIniData, $sSection, $sKey)
+Func _GUITreeViewEx_LoadTV($hTVX, $sTvIniData, $sSection, $sKey, $iCountLang = 1, $sSeparator = '{}')
 	Local $hTV
+	Local $setmedit
 	If IsHWnd($hTVX) Then
 		$hTV = $hTVX
 	Else
@@ -1931,8 +1932,14 @@ Func _GUITreeViewEx_LoadTV($hTVX, $sTvIniData, $sSection, $sKey)
 			_GUITreeViewEx_Delete($hTV)
 			Return SetError(2) ; данные в файле повреждены
 		EndIf
-		$sTVItem = $infoparam[0]
-		$hChild = _GUICtrlTreeView_AddChild($hTV, $aLevelParent[$iLevel], $sTVItem)
+		$sTVItem = $infoparam[4]
+		$sTVItem = StringSplit($sTVItem, $sSeparator, 1)
+		If $sTVItem[0] >= $iCountLang Then
+			$setmedit = $sTVItem[$iCountLang]
+		Else
+			$setmedit = $sTVItem[1]
+		EndIf
+		$hChild = _GUICtrlTreeView_AddChild($hTV, $aLevelParent[$iLevel], $setmedit)
 		_GUICtrlTreeView_SetState($hTV, $hChild, $TVIS_EXPANDED, 1)
 		$aLevelParent[$iLevel + 1] = $hChild
 		$ParamItem = Number($infoparam[1])
@@ -2107,7 +2114,7 @@ Func _GUITreeViewEx($hWnd, $iMsg, $wParam, $lParam)
 			Case $NM_CLICK
 				$MnTVs = 0
 			Case $TVN_DELETEITEMA, $TVN_DELETEITEMW
-				;~ 				$hItem = DllStructGetData($tStruct, 'NewParam')
+;~ 				$hItem = DllStructGetData($tStruct, 'NewParam')
 				$fItemDelTV = 1
 			Case $TVN_SELCHANGEDA, $TVN_SELCHANGEDW
 				$hItem = DllStructGetData($tStruct, 'NewhItem')
@@ -2147,7 +2154,7 @@ Func _GUITreeViewEx($hWnd, $iMsg, $wParam, $lParam)
 					If StringStripWS(DllStructGetData($tBuffer, 'Text'), 3) Then
 						$sNewTxtItemTV = StringReplace(StringRegExpReplace(DllStructGetData($tBuffer, 'Text'), '[*~|#><]', ' '), '\', '')
 						_GUICtrlTreeView_SetText($g_GTVEx_aTVData, $hModificationItemTV, $sNewTxtItemTV)
-						;~ 						_TextEndTV($g_GTVEx_aTVData)
+;~ 						_TextEndTV($g_GTVEx_aTVData)
 					EndIf
 				EndIf
 		EndSwitch
@@ -2204,12 +2211,12 @@ Func _TVAutoSetImg($hItem, $UpUnchk)
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hItem, 2)
 			$valparam[1] = 2
 			$oSNTV.Item($getparam) = $valparam
-			;~ 			If $hParent Then
-			;~ 				If $UpUnchk Then _AutoUnCheckParents($hItem)
-			;~ 				__TVUnCheck($hItem, False)
-			;~ 			Else
+;~ 			If $hParent Then
+;~ 				If $UpUnchk Then _AutoUnCheckParents($hItem)
+;~ 				__TVUnCheck($hItem, False)
+;~ 			Else
 			__TVUnCheck($hItem, False)
-			;~ 			EndIf
+;~ 			EndIf
 		Case 2
 			_GUICtrlTreeView_SetStateImageIndex($g_GTVEx_aTVData, $hItem, 1)
 			$valparam[1] = 1
@@ -2788,7 +2795,7 @@ If $oMod = 0 Then
 	Exit
 EndIf
 $oMod.CompareMode = 1
-Global $stoppr, $sNameMod[0], $flhide, $UpIdC = 0
+Global $stoppr, $sNameMod[0], $UpIdC = 0
 Global $WOTP, $Title, $Mini, $Close, $tmphtv, $objw, $objc, $CurGui = 0, $volume = 100
 Global $wkdir = @TempDir & '\wkdirjmp3', $pidwr, $curani = $wkdir & '\arrow.ani', $curc = $wkdir & '\arrow.cur', $force_a = $wkdir & '\force.ani', $force_c = $wkdir & '\force.cur'
 Global $curtv, $tmpcurtv, $flpathgame, $flchpathgm
@@ -3669,7 +3676,7 @@ Func _CreateTVLoad()
 		$WoTchild = GUICreate("", $aINFCTRL[4], $aINFCTRL[5], $aINFCTRL[2], $aINFCTRL[3], $WS_POPUP, BitOR($WS_EX_LAYERED, $WS_EX_MDICHILD), $WOTP)
 		GUISetBkColor(0x000000, $WoTchild)
 		$hLoadTV = GUICtrlCreateTreeView(0, 0, $aINFCTRL[4] + 18, $aINFCTRL[5], BitOR($TVS_DISABLEDRAGDROP, $TVS_NOHSCROLL, $TVS_NOTOOLTIPS, $TVS_HASLINES, $TVS_LINESATROOT, $TVS_HASBUTTONS))
-		;~ 		DllCall('UxTheme.dll', 'uint', 'SetWindowTheme', 'hwnd', GUICtrlGetHandle($hLoadTV), 'wstr', '', 'wstr', '')
+;~ 		DllCall('UxTheme.dll', 'uint', 'SetWindowTheme', 'hwnd', GUICtrlGetHandle($hLoadTV), 'wstr', '', 'wstr', '')
 		$gf = StringSplit($aINFCTRL[8], '!')
 		GUICtrlSetFont($hLoadTV, $gf[1], $gf[2], $gf[3], $gf[4])
 		GUICtrlSetColor($hLoadTV, $aINFCTRL[10])
@@ -3684,7 +3691,7 @@ Func _CreateTVLoad()
 		$objcfp.Add($hLoadTV, $aINFCTRL)
 		_GUITreeViewEx_InitTV($hLoadTV)
 		_GUITreeViewEx_TvImg($hLoadTV, $aIco)
-		_GUITreeViewEx_LoadTV($hLoadTV, $wkdir & '\page' & $aLoadTV[$i][1] & '.jmp3', 'TV', 'TV')
+		_GUITreeViewEx_LoadTV($hLoadTV, $wkdir & '\page' & $aLoadTV[$i][1] & '.jmp3', 'TV', 'TV', $iCHLangPJ, '{lang}')
 		If $aLoadTV[$i][1] > 0 Then
 			GUISetState(@SW_HIDE, $WoTchild)
 		Else
@@ -4001,7 +4008,7 @@ Func _PAGEBN($FL = 0)
 			GUICtrlSetState($i, Number($ctrlstate[25]))
 		EndIf
 	Next
-	;~ 	_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
+;~ 	_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
 EndFunc   ;==>_PAGEBN
 Func _PAGECH($cpg)
 	Local $setoldid
@@ -4062,7 +4069,7 @@ Func _PAGECH($cpg)
 				EndIf
 			Next
 			$CurGui = $cpg
-			;~ 			_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
+;~ 			_WinAPI_SetLayeredWindowAttributes($WOTP, 50, 255)
 		EndIf
 	EndIf
 EndFunc   ;==>_PAGECH
@@ -4356,7 +4363,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 									If $nbackauset = 1 Then
 										$nbackauset = 4
 										_BASS_ChannelPlay($MusicHandleBck, 0)
-										;~ 									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
+;~ 									_SetImage($FSID, $picauback, $getparam[4], $getparam[5], -1)
 										If $oMod.Exists('backauset') Then
 											$gtprc = $oMod.Item('backauset')
 											For $i = 0 To UBound($gtprc) - 1
@@ -4367,7 +4374,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 									Else
 										$nbackauset = 1
 										_BASS_ChannelPause($MusicHandleBck)
-										;~ 									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
+;~ 									_SetImage($FSID, $picaubackST, $getparam[4], $getparam[5], -1)
 										If $oMod.Exists('backauset') Then
 											$gtprc = $oMod.Item('backauset')
 											For $i = 0 To UBound($gtprc) - 1
@@ -4379,7 +4386,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 								Case 'ausetmod'
 									If $nausetmod = 1 Then
 										$nausetmod = 4
-										;~ 									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
+;~ 									_SetImage($FSID, $picaumod, $getparam[4], $getparam[5], -1)
 										If $oMod.Exists('ausetmod') Then
 											$gtprc = $oMod.Item('ausetmod')
 											For $i = 0 To UBound($gtprc) - 1
@@ -4389,7 +4396,7 @@ Func WM_COMMAND($hWnd, $iMsg, $iwParam, $ilParam)
 										EndIf
 									Else
 										$nausetmod = 1
-										;~ 									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
+;~ 									_SetImage($FSID, $picaumodST, $getparam[4], $getparam[5], -1)
 										If $oMod.Exists('ausetmod') Then
 											$gtprc = $oMod.Item('ausetmod')
 											For $i = 0 To UBound($gtprc) - 1
@@ -4532,7 +4539,12 @@ Func _PICTXTTV()
 					If $idtxt Then
 						Local $medit = StringReplace($gtpic[22], '\n', @CRLF)
 						$medit = StringReplace($medit, '\h', ' ')
-						GUICtrlSetData($idtxt, $medit)
+						$medit = StringSplit($medit, '{lang}', 1)
+						If $medit[0] >= $iCHLangPJ Then
+							GUICtrlSetData($idtxt, $medit[$iCHLangPJ])
+						Else
+							GUICtrlSetData($idtxt, $medit[1])
+						EndIf
 					EndIf
 				Else
 					If $idtxt Then
@@ -4552,9 +4564,9 @@ Func _PICTXTTV()
 EndFunc   ;==>_PICTXTTV
 
 Func _PICTXT($getcurid)
-	Local $curpic
+	Local $curpic, $medit, $gtpic, $gppic
 	If $getcurid > 0 Then
-		Local $gtpic = $objc.Item($getcurid)
+		$gtpic = $objc.Item($getcurid)
 		If Not IsArray($gtpic) Then
 			If $flhide Then
 				_UpDateVTV()
@@ -4567,7 +4579,7 @@ Func _PICTXT($getcurid)
 			If FileExists($wkdir & '\' & $gtpic[14] & StringRight($gtpic[19], 4)) Then
 				$idpic = $oMod.Item('pic' & $CurGui)
 				If $idpic Then
-					Local $gppic = $objc.Item($idpic)
+					$gppic = $objc.Item($idpic)
 					$curpic = $wkdir & '\' & $gtpic[14] & StringRight($gtpic[19], 4)
 					_SetImage($idpic, $curpic, $gppic[4], $gppic[5], -1)
 					GUICtrlSetPos($idpic, $gppic[2], $gppic[3], $gppic[4], $gppic[5])
@@ -4592,9 +4604,14 @@ Func _PICTXT($getcurid)
 			If Not (String($gtpic[22]) == '0') Then
 				$idtxt = $oMod.Item('txt' & $CurGui)
 				If $idtxt Then
-					Local $medit = StringReplace($gtpic[22], '\n', @CRLF)
+					$medit = StringReplace($gtpic[22], '\n', @CRLF)
 					$medit = StringReplace($medit, '\h', ' ')
-					GUICtrlSetData($idtxt, $medit)
+					$medit = StringSplit($medit, '{lang}', 1)
+					If $medit[0] >= $iCHLangPJ Then
+						GUICtrlSetData($idtxt, $medit[$iCHLangPJ])
+					Else
+						GUICtrlSetData($idtxt, $medit[1])
+					EndIf
 					$flhide = 1
 				EndIf
 			Else
